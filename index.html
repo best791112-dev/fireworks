@@ -91,20 +91,27 @@
                 </div>
             </div>
 
-            <!-- 本地專案存檔 (相容 Github) -->
+            <!-- 自動存檔與手動備份 -->
             <div class="glass-morphism p-6 rounded-2xl shadow-xl">
                 <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                    <span class="text-emerald-500">💾</span> 專案存檔 (相容靜態網頁)
+                    <span class="text-emerald-500">💾</span> 設定存檔與備份
                 </h2>
                 <div class="space-y-3">
-                    <div class="flex flex-col gap-2">
-                        <input type="text" id="configName" placeholder="輸入專案名稱 (例: 101跨年東側)" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
+                    <!-- 自動存檔提示 -->
+                    <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-start gap-2">
+                        <span class="text-lg">✨</span>
+                        <p>系統會<strong>自動儲存</strong>您的設定與地圖機位。下次打開此網頁時將自動讀取，無需手動載入！</p>
+                    </div>
+
+                    <div class="flex flex-col gap-2 pt-3 border-t border-slate-200">
+                        <span class="text-xs font-bold text-slate-500">手動備份 / 分享機位給朋友 (JSON)</span>
+                        <input type="text" id="configName" placeholder="輸入專案名稱 (例: 101跨年)" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
                         <div class="flex gap-2">
-                            <button onclick="window.exportConfig()" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center justify-center gap-1">
-                                <span>📥</span> 匯出 (JSON)
+                            <button onclick="window.exportConfig()" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center justify-center gap-1">
+                                <span>📥</span> 匯出
                             </button>
                             <label class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition cursor-pointer flex items-center justify-center gap-1">
-                                <span>📤</span> 匯入設定
+                                <span>📤</span> 匯入
                                 <input type="file" id="importFile" accept=".json" class="hidden" onchange="window.importConfig(event)">
                             </label>
                         </div>
@@ -181,19 +188,46 @@
         <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
         <canvas id="arCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
         
-        <div class="absolute top-0 left-0 right-0 p-3 flex flex-wrap justify-between items-start text-white z-20 bg-gradient-to-b from-black/80 to-transparent gap-2 pb-10">
-            <span class="font-bold text-sm md:text-base whitespace-nowrap drop-shadow-md">📷 比例草圖模擬</span>
-            <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-                <select id="arOrientation" onchange="drawARSketch()" class="p-1 text-black rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500 shadow-md">
+        <!-- AR 控制面板 (改為雙層結構，加入參數調整) -->
+        <div class="absolute top-0 left-0 right-0 p-3 flex flex-col gap-2 z-20 bg-gradient-to-b from-black/80 via-black/50 to-transparent pb-10 pointer-events-none">
+            <!-- 頂部按鈕與標題 -->
+            <div class="flex justify-between items-start text-white pointer-events-auto">
+                <span class="font-bold text-sm md:text-base drop-shadow-md">📷 比例草圖模擬</span>
+                <div class="flex gap-2">
+                    <button onclick="toggleFullscreen()" class="bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded font-bold text-sm shadow-lg transition">⛶ 全螢幕</button>
+                    <button onclick="closeAR()" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded font-bold text-sm shadow-lg transition">關閉 X</button>
+                </div>
+            </div>
+            
+            <!-- 參數微調列 -->
+            <div class="flex flex-wrap items-center gap-2 pointer-events-auto">
+                <select id="arOrientation" onchange="drawARSketch()" class="p-1 text-black rounded text-xs outline-none shadow-md">
                     <option value="auto">自動方向</option>
                     <option value="portrait">強制直幅</option>
                     <option value="landscape">強制橫幅</option>
                 </select>
-                <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-14 p-1 text-black text-center rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500 shadow-md" title="輸入手機鏡頭的等效焦距 (全片幅)">
-                <span class="text-xs text-slate-200 drop-shadow-md">mm</span>
                 
-                <button onclick="toggleFullscreen()" class="ml-1 md:ml-2 bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded font-bold text-sm whitespace-nowrap shadow-lg transition">⛶ 全螢幕</button>
-                <button onclick="closeAR()" class="ml-1 md:ml-2 bg-red-500 hover:bg-red-600 px-3 py-1 rounded font-bold text-sm whitespace-nowrap shadow-lg transition">關閉 X</button>
+                <div class="bg-black/60 px-2 py-1 rounded backdrop-blur border border-white/20 flex items-center gap-1 shadow-md">
+                    <label class="text-white text-[10px] whitespace-nowrap">焦距:</label>
+                    <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-10 p-0.5 text-black text-center rounded text-xs outline-none" title="相機等效焦距">
+                    <span class="text-white text-[10px]">mm</span>
+                </div>
+
+                <div class="bg-emerald-900/60 px-2 py-1 rounded backdrop-blur border border-emerald-500/50 flex items-center gap-1 shadow-md">
+                    <label class="text-emerald-100 text-[10px] whitespace-nowrap">最大吋數:</label>
+                    <input type="number" id="arFwInch" oninput="syncFromAR()" class="w-10 p-0.5 text-black text-center rounded text-xs outline-none">
+                </div>
+
+                <div class="bg-emerald-900/60 px-2 py-1 rounded backdrop-blur border border-emerald-500/50 flex items-center gap-1 shadow-md">
+                    <label class="text-emerald-100 text-[10px] whitespace-nowrap">陣地寬:</label>
+                    <input type="number" id="arFwWidth" oninput="syncFromAR()" class="w-12 p-0.5 text-black text-center rounded text-xs outline-none">
+                    <span class="text-emerald-100 text-[10px]">m</span>
+                </div>
+
+                <div class="bg-emerald-900/60 px-2 py-1 rounded backdrop-blur border border-emerald-500/50 flex items-center gap-1 shadow-md">
+                    <label class="text-emerald-100 text-[10px] whitespace-nowrap">發射點:</label>
+                    <input type="number" id="arFwPoints" oninput="syncFromAR()" class="w-10 p-0.5 text-black text-center rounded text-xs outline-none">
+                </div>
             </div>
         </div>
 
@@ -214,8 +248,9 @@
         var polyline = null;
         var windArrow = null;
         var siteLineGroup = null;
+        var isAutoLoading = false; // 防止讀取時觸發自動儲存
 
-        // 初始化地圖
+        // 初始化地圖與自動讀取
         window.onload = function() {
             map = L.map('map').setView([25.0339, 121.5644], 15);
             
@@ -238,9 +273,13 @@
 
             map.on('click', onMapClick);
 
-            document.querySelectorAll('input:not(#arFocalLength)').forEach(input => {
+            // 監聽所有主選單輸入並觸發計算與自動儲存
+            document.querySelectorAll('input:not([id^="ar"]').forEach(input => {
                 input.addEventListener('input', calculate);
             });
+
+            // 啟動時自動讀取本地存檔
+            autoLoadLocal();
         };
 
         function onMapClick(e) {
@@ -297,6 +336,9 @@
             document.getElementById('windForecast').innerHTML = '';
             document.getElementById('weatherStatus').innerText = '請在地圖上點擊以獲取氣象資料...';
             document.getElementById('angleControlBox').classList.add('hidden');
+            
+            // 重置後自動儲存空狀態
+            autoSaveLocal();
         }
 
         function calculate() {
@@ -327,7 +369,6 @@
 
             if (fireworkPos && cameraPos) {
                 const distance = fireworkPos.distanceTo(cameraPos);
-                // 導入高低差計算真實的斜邊距離 (Slant Distance)
                 const slantDistance = Math.sqrt(distance * distance + elevationDiff * elevationDiff);
                 
                 const fH_w = (36 * slantDistance) / (totalWidth * safety);
@@ -358,10 +399,38 @@
 
             updateLaunchSiteLine();
             
+            // 同步變數到 AR 輸入框
+            syncToAR();
+
             if(!document.getElementById('arModal').classList.contains('hidden')) {
                 drawARSketch();
             }
+
+            // 每次計算(數值變更)後都觸發自動儲存
+            if (!isAutoLoading) {
+                autoSaveLocal();
+            }
         }
+
+        // ====== AR 內部數值同步邏輯 ======
+        function syncToAR() {
+            const arInch = document.getElementById('arFwInch');
+            const arWidth = document.getElementById('arFwWidth');
+            const arPoints = document.getElementById('arFwPoints');
+            if(arInch) arInch.value = document.getElementById('fwInch').value;
+            if(arWidth) arWidth.value = document.getElementById('fwWidth').value;
+            if(arPoints) arPoints.value = document.getElementById('fwPoints').value;
+        }
+
+        function syncFromAR() {
+            // 從 AR 介面修改後，同步回主設定並重新計算
+            document.getElementById('fwInch').value = document.getElementById('arFwInch').value;
+            document.getElementById('fwWidth').value = document.getElementById('arFwWidth').value;
+            document.getElementById('fwPoints').value = document.getElementById('arFwPoints').value;
+            calculate();
+        }
+
+        // ==============================
 
         function getBearing(latlng1, latlng2) {
             const lat1 = latlng1.lat * Math.PI / 180;
@@ -549,7 +618,6 @@
             scale = focalLengthPx / slantDistance; 
             
             // ========== 核心升級：高低差透視計算 ==========
-            // 如果你在山上往下拍 (elevationDiff > 0)，陣地的基準面會在水平線(groundY)的「下方」
             let launchBaseY = groundY + (elevationDiff * scale);
 
             if (isDefaultDistance) {
@@ -595,7 +663,7 @@
                 let distFromCenter = (fraction - 0.5) * apparentW; 
                 let pointX = cx + (distFromCenter * scale);
                 
-                // 煙火是從陣地基準面 (launchBaseY) 往上升空的
+                // 煙火是從陣地基準面往上升空
                 let explodeY = launchBaseY - (altitude * scale);
                 let radiusPx = (burstDia / 2) * scale;
 
@@ -624,17 +692,79 @@
             ctx.shadowColor = "rgba(0,0,0,0.8)";
             ctx.shadowBlur = 4;
             
-            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 80);
+            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 100);
             ctx.fillStyle = 'rgba(252, 211, 77, 1)'; 
-            ctx.fillText(`狀態：${scaleHint}`, cx, 100);
+            ctx.fillText(`狀態：${scaleHint}`, cx, 120);
             
             ctx.shadowBlur = 0;
         }
 
-        // ================= JSON 檔案匯出 / 匯入邏輯 =================
+        // ================= 瀏覽器本地快取自動存檔 (Auto-Save) =================
+        function autoSaveLocal() {
+            if (isAutoLoading || !map) return;
+            const data = {
+                fwInch: document.getElementById('fwInch').value,
+                fwPoints: document.getElementById('fwPoints').value,
+                fwWidth: document.getElementById('fwWidth').value,
+                elevationDiff: document.getElementById('elevationDiff').value,
+                safetyMargin: document.getElementById('safetyMargin').value,
+                landscapeMargin: document.getElementById('landscapeMargin').value,
+                siteAngle: document.getElementById('siteAngle').value,
+                fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
+                cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
+            };
+            localStorage.setItem('fireworks_autosave', JSON.stringify(data));
+        }
+
+        function autoLoadLocal() {
+            isAutoLoading = true; // 鎖定自動儲存，防止讀取過程中覆蓋資料
+            const saved = localStorage.getItem('fireworks_autosave');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    document.getElementById('fwInch').value = data.fwInch || 12;
+                    document.getElementById('fwPoints').value = data.fwPoints || 1;
+                    document.getElementById('fwWidth').value = data.fwWidth || 100;
+                    document.getElementById('elevationDiff').value = data.elevationDiff || 0;
+                    document.getElementById('safetyMargin').value = data.safetyMargin || 20;
+                    document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
+                    document.getElementById('siteAngle').value = data.siteAngle || 90;
+                    
+                    if (data.fireworkPos) {
+                        window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
+                        addMarker(window.fireworkPos, 'firework', '砲陣地');
+                        document.getElementById('angleControlBox').classList.remove('hidden');
+                    }
+                    
+                    if (data.cameraPos) {
+                        window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
+                        addMarker(window.cameraPos, 'camera', '拍攝點');
+                    }
+                    
+                    if (window.fireworkPos && window.cameraPos) {
+                        updateDistance(); 
+                        fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
+                        map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
+                    } else if (window.fireworkPos) {
+                        map.setView(window.fireworkPos, 15);
+                        calculate();
+                    } else {
+                        calculate();
+                    }
+                    showSaveMsg("🔄 已自動讀取上次設定與機位");
+                } catch (err) {
+                    console.error("Auto load error:", err);
+                    calculate();
+                }
+            } else {
+                calculate();
+            }
+            isAutoLoading = false; // 解除鎖定
+        }
+
+        // ================= JSON 檔案手動匯出 / 匯入 (備份用途) =================
         window.exportConfig = function() {
             const name = document.getElementById('configName').value.trim() || 'fireworks_config';
-            
             const data = {
                 name: name,
                 fwInch: document.getElementById('fwInch').value,
@@ -659,7 +789,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            showSaveMsg("✅ 已成功匯出 JSON 設定檔");
+            showSaveMsg("✅ 已成功匯出設定檔");
         };
 
         window.importConfig = function(event) {
@@ -680,35 +810,34 @@
                     document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
                     document.getElementById('siteAngle').value = data.siteAngle || 90;
                     
-                    window.resetMap();
+                    resetMap();
                     
                     if (data.fireworkPos) {
                         window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
-                        window.addMarker(window.fireworkPos, 'firework', '砲陣地');
+                        addMarker(window.fireworkPos, 'firework', '砲陣地');
                         document.getElementById('angleControlBox').classList.remove('hidden');
                     }
                     
                     if (data.cameraPos) {
                         window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
-                        window.addMarker(window.cameraPos, 'camera', '拍攝點');
+                        addMarker(window.cameraPos, 'camera', '拍攝點');
                     }
                     
                     if (window.fireworkPos && window.cameraPos) {
-                        window.updateDistance(); 
-                        window.fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
-                        window.map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
+                        updateDistance(); 
+                        fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
+                        map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
                     } else if (window.fireworkPos) {
-                        window.map.setView(window.fireworkPos, 15);
-                        window.calculate();
+                        map.setView(window.fireworkPos, 15);
+                        calculate();
                     } else {
-                        window.calculate();
+                        calculate();
                     }
-                    showSaveMsg(`✅ 已成功匯入「${data.name || '設定檔'}」`);
+                    showSaveMsg(`✅ 已成功載入「${data.name || '設定檔'}」`);
                 } catch (err) {
-                    console.error("Parse error:", err);
                     showSaveMsg("❌ 匯入失敗，檔案格式不正確", true);
                 }
-                event.target.value = ''; // 確保下次選同一個檔案也能觸發
+                event.target.value = '';
             };
             reader.readAsText(file);
         };
