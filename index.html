@@ -114,7 +114,7 @@
                 <div class="relative">
                     <div id="map"></div>
                     
-                    <!-- 地圖浮動控制：旋轉觀賞面 (預設隱藏，點擊陣地後顯示) -->
+                    <!-- 地圖浮動控制：旋轉觀賞面 -->
                     <div id="angleControlBox" class="hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000] w-11/12 max-w-sm bg-white/95 backdrop-blur px-5 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-slate-200 transition-all">
                         <label class="block text-sm font-bold text-slate-700 mb-2 text-center flex items-center justify-center gap-2">
                             <span>🔄 旋轉觀賞面</span>
@@ -157,7 +157,11 @@
             <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
             <canvas id="arCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
             <div id="arWarning" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden z-0">
-                <span class="text-white/50 text-sm bg-black/50 p-2 rounded">無法存取相機，僅顯示草圖背景</span>
+                <div class="text-white/90 text-sm bg-black/80 p-5 rounded-xl text-center max-w-xs backdrop-blur-sm border border-white/20 pointer-events-auto">
+                    <p class="font-bold text-red-400 mb-2 text-lg">⚠️ 無法存取相機</p>
+                    <p>如果您不小心拒絕了權限，請手動<span class="text-emerald-400 font-bold">允許相機權限</span>後，重新整理網頁。</p>
+                    <p class="mt-2 text-white/50 text-xs">目前僅能顯示黑色背景的模擬草圖。</p>
+                </div>
             </div>
         </div>
     </div>
@@ -169,28 +173,24 @@
         let markers = [];
         let polyline = null;
         let windArrow = null;
-        let siteLineGroup = null; // 新增：砲陣地線條群組
+        let siteLineGroup = null;
 
-        // 初始化地圖 (預設台北 101 周邊)
+        // 初始化地圖
         window.onload = function() {
             map = L.map('map').setView([25.0339, 121.5644], 15);
             
-            // 定義 Google 一般地圖
             const googleStreets = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 attribution: '&copy; Google'
             });
 
-            // 定義 Google 衛星混合地圖 (衛星圖+地名)
             const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 attribution: '&copy; Google'
             });
 
-            // 預設載入 Google 一般地圖
             googleStreets.addTo(map);
 
-            // 在地圖右上角加入切換圖層的控制項
             L.control.layers({
                 "Google 一般地圖": googleStreets,
                 "Google 衛星地圖": googleHybrid
@@ -198,7 +198,6 @@
 
             map.on('click', onMapClick);
 
-            // 監聽輸入變化
             document.querySelectorAll('input').forEach(input => {
                 input.addEventListener('input', calculate);
             });
@@ -208,8 +207,8 @@
             if (!fireworkPos) {
                 fireworkPos = e.latlng;
                 addMarker(fireworkPos, 'firework', '砲陣地');
-                document.getElementById('angleControlBox').classList.remove('hidden'); // 顯示旋轉控制項
-                calculate(); // 加入這行讓第一下點擊就能畫出砲陣地觀賞面
+                document.getElementById('angleControlBox').classList.remove('hidden');
+                calculate();
             } else if (!cameraPos) {
                 cameraPos = e.latlng;
                 addMarker(cameraPos, 'camera', '拍攝點');
@@ -257,7 +256,7 @@
             document.getElementById('focalVertical').innerText = `-- mm`;
             document.getElementById('windForecast').innerHTML = '';
             document.getElementById('weatherStatus').innerText = '請在地圖上點擊以獲取氣象資料...';
-            document.getElementById('angleControlBox').classList.add('hidden'); // 隱藏旋轉控制項
+            document.getElementById('angleControlBox').classList.add('hidden');
         }
 
         function calculate() {
@@ -273,15 +272,11 @@
             const landscapePct = parseFloat(document.getElementById('landscapeMargin').value) || 0;
             document.getElementById('landscapeVal').innerText = `${landscapePct}%`;
 
-            // 煙火物理量預估 (Rule of thumb)
-            // 吋數 x 28 = 爆炸直徑 (m)
-            // 吋數 x 32 = 升空中心高度 (m)
             const burstDia = inch * 28;
             const altitude = inch * 32;
-            const totalHeight = altitude + (burstDia / 2); // 頂端高度
+            const totalHeight = altitude + (burstDia / 2);
             const totalWidth = arrayWidth + burstDia;
 
-            // 加入地景考量：煙火只能佔據 (100 - 地景佔比)% 的高度
             const landscapeRatio = landscapePct / 100;
             const virtualTotalHeight = totalHeight / (1 - landscapeRatio);
 
@@ -292,15 +287,10 @@
             if (fireworkPos && cameraPos) {
                 const distance = fireworkPos.distanceTo(cameraPos);
                 
-                // 全片幅 36x24mm
-                // f = (SensorSize * Distance) / ObjectSize
-                
-                // 橫幅計算 (高度限制套用 virtualTotalHeight)
                 const fH_w = (36 * distance) / (totalWidth * safety);
                 const fH_h = (24 * distance) / (virtualTotalHeight * safety);
                 const suggestH = Math.min(fH_w, fH_h);
 
-                // 直幅計算 (高度限制套用 virtualTotalHeight)
                 const fV_w = (24 * distance) / (totalWidth * safety);
                 const fV_h = (36 * distance) / (virtualTotalHeight * safety);
                 const suggestV = Math.min(fV_w, fV_h);
@@ -308,7 +298,6 @@
                 document.getElementById('focalHorizontal').innerText = `${Math.floor(suggestH)} mm`;
                 document.getElementById('focalVertical').innerText = `${Math.floor(suggestV)} mm`;
 
-                // 計算拍攝點與觀賞面的夾角
                 const bearing = getBearing(fireworkPos, cameraPos);
                 let diff = Math.abs(bearing - siteAngle) % 180;
                 if (diff > 90) diff = 180 - diff;
@@ -324,16 +313,13 @@
                 angleEl.classList.remove('hidden');
             }
 
-            // 更新地圖上的砲陣地角度線與點位草圖
             updateLaunchSiteLine();
             
-            // 如果 AR 模式開著，同步更新草圖
             if(!document.getElementById('arModal').classList.contains('hidden')) {
                 drawARSketch();
             }
         }
 
-        // 輔助函式：計算兩點之間的方位角 (Bearing)
         function getBearing(latlng1, latlng2) {
             const lat1 = latlng1.lat * Math.PI / 180;
             const lng1 = latlng1.lng * Math.PI / 180;
@@ -346,19 +332,14 @@
             return (brng + 360) % 360;
         }
 
-        // 輔助函式：根據距離(公尺)與角度計算新的經緯度座標
         function getOffsetLatLng(latlng, distanceMeters, angleDeg) {
-            // 確保支援 Leaflet LatLng 物件或是 [lat, lng] 陣列
             const lat = latlng.lat !== undefined ? latlng.lat : latlng[0];
             const lng = latlng.lng !== undefined ? latlng.lng : latlng[1];
-
-            // 粗略計算：赤道 1度約 111.32 km
             const latOffset = (distanceMeters * Math.cos(angleDeg * Math.PI / 180)) / 111320;
             const lngOffset = (distanceMeters * Math.sin(angleDeg * Math.PI / 180)) / (111320 * Math.cos(lat * Math.PI / 180));
             return [lat + latOffset, lng + lngOffset];
         }
 
-        // 繪製與更新砲陣地線條及各發射點草圖
         function updateLaunchSiteLine() {
             if (siteLineGroup) map.removeLayer(siteLineGroup);
             if (!fireworkPos) return;
@@ -367,54 +348,33 @@
             const angle = parseFloat(document.getElementById('siteAngle').value) || 0;
             const ptsCount = parseInt(document.getElementById('fwPoints').value) || 1;
             const inch = parseFloat(document.getElementById('fwInch').value) || 0;
-            const burstDia = inch * 28; // 爆炸直徑預估
+            const burstDia = inch * 28;
 
             siteLineGroup = L.layerGroup().addTo(map);
 
-            // 計算實線兩端點 (由中心向外延伸 W/2)
             const pt1 = getOffsetLatLng(fireworkPos, W/2, angle);
             const pt2 = getOffsetLatLng(fireworkPos, W/2, angle + 180);
 
-            // 畫實線 (代表真實陣地長度與方向)
             L.polyline([pt1, pt2], { color: '#f97316', weight: 6, opacity: 0.9 }).addTo(siteLineGroup);
 
-            // 畫發射點位草圖
             for (let i = 0; i < ptsCount; i++) {
-                // 計算每個點的比例位置 (從 -W/2 到 W/2)
                 let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
                 let distFromCenter = (fraction - 0.5) * W; 
                 let ptLatLng = getOffsetLatLng(fireworkPos, Math.abs(distFromCenter), distFromCenter > 0 ? angle : angle + 180);
 
-                // 畫代表爆炸範圍的大虛線圓
-                L.circle(ptLatLng, {
-                    radius: burstDia / 2,
-                    color: '#ef4444',
-                    weight: 1,
-                    fillOpacity: 0.05,
-                    dashArray: '5,5'
-                }).addTo(siteLineGroup);
-
-                // 畫代表砲管的小點
-                L.circleMarker(ptLatLng, {
-                    radius: 3,
-                    fillColor: '#fff',
-                    color: '#000',
-                    weight: 1,
-                    fillOpacity: 1
-                }).addTo(siteLineGroup);
+                L.circle(ptLatLng, { radius: burstDia / 2, color: '#ef4444', weight: 1, fillOpacity: 0.05, dashArray: '5,5' }).addTo(siteLineGroup);
+                L.circleMarker(ptLatLng, { radius: 3, fillColor: '#fff', color: '#000', weight: 1, fillOpacity: 1 }).addTo(siteLineGroup);
             }
 
-            // 若寬度低於 1000m，用虛線補齊總長到 1000m (單邊延伸至 500m)
             if (W < 1000) {
                 const ptDash1 = getOffsetLatLng(fireworkPos, 500, angle);
                 const ptDash2 = getOffsetLatLng(fireworkPos, 500, angle + 180);
-                
                 L.polyline([pt1, ptDash1], { color: '#f97316', weight: 4, dashArray: '8, 8', opacity: 0.6 }).addTo(siteLineGroup);
                 L.polyline([pt2, ptDash2], { color: '#f97316', weight: 4, dashArray: '8, 8', opacity: 0.6 }).addTo(siteLineGroup);
             }
         }
 
-        // ================= AR 相關函式 =================
+        // ================= AR 相關函式 (已更新真實距離與透視) =================
         let arStream = null;
         let arAnimationId = null;
 
@@ -423,18 +383,15 @@
             const video = document.getElementById('arVideo');
             
             try {
-                // 嘗試呼叫後置鏡頭
                 arStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: "environment" } 
                 });
                 video.srcObject = arStream;
                 document.getElementById('arWarning').classList.add('hidden');
             } catch (err) {
-                console.warn("無法取得相機權限:", err);
                 document.getElementById('arWarning').classList.remove('hidden');
             }
 
-            // 確保 Canvas 尺寸與視窗吻合
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             drawARSketch();
@@ -465,7 +422,6 @@
 
             ctx.clearRect(0, 0, cw, ch);
 
-            // 取得參數
             const inch = parseFloat(document.getElementById('fwInch').value) || 0;
             const W = parseFloat(document.getElementById('fwWidth').value) || 0;
             const ptsCount = parseInt(document.getElementById('fwPoints').value) || 1;
@@ -473,20 +429,49 @@
 
             const burstDia = inch * 28;
             const altitude = inch * 32;
-            const totalHeight = altitude + (burstDia / 2); // 實際煙火頂端高度
+            const totalHeight = altitude + (burstDia / 2);
             const totalWidth = W + burstDia;
 
-            // 依據地景佔比，決定地平線位置 (Y座標)
             const groundY = ch * (1 - (landscapePct / 100));
 
-            // 計算繪圖縮放比例 (讓整個陣地能塞進畫面 80% 的寬度，高度不超過地平線上方)
-            const scaleX = (cw * 0.8) / totalWidth;
-            const scaleY = (groundY * 0.8) / totalHeight;
-            const scale = Math.min(scaleX, scaleY); // 等比例縮放
+            // ====== 核心升級：真實距離與透視運算 ======
+            let distance = 0;
+            let viewAngle = 90; // 預設正面
 
-            const cx = cw / 2; // 畫面中心
+            if (fireworkPos && cameraPos) {
+                distance = fireworkPos.distanceTo(cameraPos);
+                const siteAngle = parseFloat(document.getElementById('siteAngle').value) || 0;
+                const bearing = getBearing(fireworkPos, cameraPos);
+                let diff = Math.abs(bearing - siteAngle) % 180;
+                if (diff > 90) diff = 180 - diff;
+                viewAngle = Math.round(diff);
+            }
 
-            // 1. 畫地平線與取景框提示
+            let scale = 1;
+            let scaleHint = "";
+
+            if (distance > 0) {
+                // 1. 真實距離縮放：模擬手機主鏡頭約 65 度水平視角 (FOV)
+                const fovH = 65 * (Math.PI / 180);
+                const focalLengthPx = (cw / 2) / Math.tan(fovH / 2);
+                scale = focalLengthPx / distance; // 1 公尺在螢幕上等於多少像素
+                scaleHint = `真實距離縮放 (${Math.round(distance)}m) | 視角 ${viewAngle}°`;
+            } else {
+                // 2. 退回機制：若未設定拍攝點，自動縮放以看清結構
+                const scaleX = (cw * 0.8) / totalWidth;
+                const scaleY = (groundY * 0.8) / totalHeight;
+                scale = Math.min(scaleX, scaleY);
+                scaleHint = `自動縮放 (未設定距離)`;
+            }
+
+            // 3. 視角透視壓縮：如果從側面看，陣地寬度會變窄 (sin 函數)
+            // 避免完全重疊，保留最少 5% 的寬度方便辨識
+            const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
+            // ===========================================
+
+            const cx = cw / 2;
+
+            // 畫地平線與取景框提示
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 5]);
@@ -496,22 +481,21 @@
             ctx.stroke();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
             ctx.font = '12px sans-serif';
+            ctx.textAlign = 'left';
             ctx.fillText(`地景預留線 (${landscapePct}%)`, 10, groundY - 5);
             ctx.setLineDash([]);
 
-            // 2. 畫陣地與煙火草圖
-            // 繪製中心點對齊畫面中心
+            // 畫陣地與煙火草圖
             for (let i = 0; i < ptsCount; i++) {
                 let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
-                // 該點相對於陣地中心的實體距離
-                let distFromCenter = (fraction - 0.5) * W; 
                 
-                // 轉換為 Canvas 座標
+                // 使用透視壓縮後的寬度 (apparentW) 計算螢幕 X 座標
+                let distFromCenter = (fraction - 0.5) * apparentW; 
                 let pointX = cx + (distFromCenter * scale);
-                let explodeY = groundY - (altitude * scale); // 爆炸中心高度
+                
+                let explodeY = groundY - (altitude * scale);
                 let radiusPx = (burstDia / 2) * scale;
 
-                // 畫升空軌跡 (半透明白線)
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
@@ -519,25 +503,26 @@
                 ctx.lineTo(pointX, explodeY);
                 ctx.stroke();
 
-                // 畫爆炸範圍 (外圈)
-                ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // Red-500
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(pointX, explodeY, Math.max(radiusPx, 2), 0, Math.PI * 2);
                 ctx.stroke();
                 
-                // 畫爆炸核心 (填滿)
-                ctx.fillStyle = 'rgba(249, 115, 22, 0.5)'; // Orange-500
+                ctx.fillStyle = 'rgba(249, 115, 22, 0.5)';
                 ctx.beginPath();
                 ctx.arc(pointX, explodeY, Math.max(radiusPx * 0.2, 2), 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            // 加入文字提示
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.font = 'bold 16px sans-serif';
+            ctx.font = 'bold 14px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`模擬立面草圖 (發射點: ${ptsCount} / 寬度: ${W}m)`, cx, 30);
+            
+            // 繪製多行提示字以避免字被切掉
+            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 30);
+            ctx.fillStyle = 'rgba(252, 211, 77, 0.9)'; // Amber color
+            ctx.fillText(`比例：${scaleHint}`, cx, 50);
         }
 
         // ==========================================
@@ -545,15 +530,12 @@
         async function fetchWeather(lat, lng) {
             document.getElementById('weatherStatus').innerText = '正在讀取氣象預報...';
             try {
-                // 使用 Open-Meteo 免金鑰 API
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=windspeed_10m,winddirection_10m&current_weather=true&timezone=auto`;
                 const response = await fetch(url);
                 const data = await response.json();
-
                 displayWeather(data);
             } catch (error) {
                 document.getElementById('weatherStatus').innerText = '無法獲取氣象資料。';
-                console.error(error);
             }
         }
 
@@ -565,13 +547,11 @@
             
             document.getElementById('weatherStatus').innerHTML = `目前位置氣溫: ${current.temperature}°C <br><span class="text-xs text-orange-500 font-bold mt-1 inline-block">💡 點擊下方時段，可於地圖預覽該時間風向</span>`;
 
-            // 尋找當前時間在 API 資料中的索引，確保時間對齊
             let startIndex = hourly.time.findIndex(t => t === current.time);
-            if (startIndex === -1) startIndex = new Date().getHours(); // 備用方案
+            if (startIndex === -1) startIndex = new Date().getHours();
 
             let activeItem = null;
 
-            // 顯示當前 + 未來 6 小時
             for (let i = 0; i <= 6; i++) {
                 const dataIndex = startIndex + i;
                 if (dataIndex >= hourly.time.length) break;
@@ -579,13 +559,11 @@
                 const timeObj = new Date(hourly.time[dataIndex]);
                 const hour = timeObj.getHours().toString().padStart(2, '0');
                 
-                // i=0 使用當下真實氣象，其他使用預測
                 const windDir = i === 0 ? current.winddirection : hourly.winddirection_10m[dataIndex];
                 const windSpd = i === 0 ? current.windspeed : hourly.windspeed_10m[dataIndex];
                 const label = i === 0 ? "現在" : `+${i}hr (${hour}:00)`;
 
                 const item = document.createElement('div');
-                // 加入 cursor-pointer 讓它變成可點擊，並設定 hover 效果
                 item.className = "flex items-center justify-between bg-white p-2 rounded-lg text-sm shadow-sm cursor-pointer border-2 border-transparent hover:border-blue-300 transition-all";
                 item.innerHTML = `
                     <span class="font-bold text-slate-500">${label}</span>
@@ -596,24 +574,16 @@
                     <span class="text-blue-600 font-medium">${windSpd} km/h</span>
                 `;
 
-                // 預設選中「現在」的第一筆
                 if (i === 0) {
                     item.classList.add('border-blue-500', 'bg-blue-50');
                     activeItem = item;
                     updateWindArrow(windDir, label);
                 }
 
-                // 點擊事件設定
                 item.onclick = () => {
-                    // 移除上一個選中的樣式
-                    if (activeItem) {
-                        activeItem.classList.remove('border-blue-500', 'bg-blue-50');
-                    }
-                    // 加上目前選中的樣式
+                    if (activeItem) activeItem.classList.remove('border-blue-500', 'bg-blue-50');
                     item.classList.add('border-blue-500', 'bg-blue-50');
                     activeItem = item;
-                    
-                    // 更新地圖上的箭頭
                     updateWindArrow(windDir, label);
                 };
 
@@ -625,24 +595,18 @@
             if (windArrow) map.removeLayer(windArrow);
             if (!fireworkPos || isNaN(degree)) return;
             
-            // 氣象風向通常指「風從哪裡來」，因此煙霧會飄向的方位是 degree + 180 度
             const blowingToAngle = (degree + 180) % 360;
-            
-            // 箭頭終點 (距離陣地固定畫 300 公尺長)
             const endPoint = getOffsetLatLng(fireworkPos, 300, blowingToAngle);
             
-            // 計算箭頭的左、右兩角 (從終點往回推 40 公尺，並展開 30 度角)
             const leftPt = getOffsetLatLng(endPoint, 40, blowingToAngle + 150);
             const rightPt = getOffsetLatLng(endPoint, 40, blowingToAngle - 150);
 
-            // 畫風向主線
             const line = L.polyline([fireworkPos, endPoint], {
-                color: '#a855f7', // 使用紫色以區分橘紅色的砲陣地
+                color: '#a855f7',
                 weight: 5,
                 opacity: 0.6
             }).bindTooltip(`煙霧飄向 (${timeLabel})`, {permanent: true, direction: 'top'});
 
-            // 畫箭頭頂端多邊形
             const tip = L.polygon([endPoint, leftPt, rightPt], {
                 color: '#a855f7',
                 fillColor: '#a855f7',
