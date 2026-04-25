@@ -84,6 +84,25 @@
                 </div>
             </div>
 
+            <!-- 雲端專案存檔 (新增面板) -->
+            <div class="glass-morphism p-6 rounded-2xl shadow-xl">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span class="text-emerald-500">💾</span> 雲端專案存檔
+                </h2>
+                <div class="space-y-3">
+                    <div class="flex flex-col gap-1">
+                        <div class="flex gap-2">
+                            <input type="text" id="configName" placeholder="輸入專案名稱 (例: 101跨年東側)" class="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
+                            <button onclick="window.saveCurrentConfig()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition whitespace-nowrap">儲存</button>
+                        </div>
+                        <span id="saveMsg" class="text-xs h-4 font-bold"></span>
+                    </div>
+                    <div id="savedConfigsList" class="mt-2 space-y-2 max-h-40 overflow-y-auto border-t border-slate-200 pt-3">
+                        <div class="text-sm text-slate-400 text-center py-2">連線中...</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 風向資訊 -->
             <div class="glass-morphism p-6 rounded-2xl shadow-xl">
                 <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
@@ -181,13 +200,13 @@
     </div>
 
     <script>
-        let map;
-        let fireworkPos = null;
-        let cameraPos = null;
-        let markers = [];
-        let polyline = null;
-        let windArrow = null;
-        let siteLineGroup = null;
+        var map;
+        var fireworkPos = null;
+        var cameraPos = null;
+        var markers = [];
+        var polyline = null;
+        var windArrow = null;
+        var siteLineGroup = null;
 
         // 初始化地圖
         window.onload = function() {
@@ -683,6 +702,204 @@
             const index = Math.round(deg / 22.5) % 16;
             return directions[index];
         }
+    </script>
+
+    <!-- Firebase 雲端存檔邏輯 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, doc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        let db, auth, currentUser, appId;
+        let unsubscribe = null;
+        
+        window.savedConfigsData = {};
+
+        // 提示訊息小工具
+        const showMsg = (msg, isError = false) => {
+            const el = document.getElementById('saveMsg');
+            if(!el) return;
+            el.textContent = msg;
+            el.className = `text-xs h-4 font-bold ${isError ? 'text-red-500' : 'text-emerald-500'}`;
+            setTimeout(() => el.textContent = '', 3000);
+        };
+
+        try {
+            const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
+            if (firebaseConfigStr) {
+                const firebaseConfig = JSON.parse(firebaseConfigStr);
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch(e) { console.error("Auth Error", e); }
+                };
+                initAuth();
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    if (user) {
+                        listenToConfigs();
+                    }
+                });
+            } else {
+                document.getElementById('savedConfigsList').innerHTML = '<div class="text-sm text-slate-400 text-center py-2">雲端存檔功能在此環境不可用</div>';
+            }
+        } catch(e) { 
+            console.error("Firebase init error", e); 
+            document.getElementById('savedConfigsList').innerHTML = '<div class="text-sm text-red-400 text-center py-2">初始化失敗</div>';
+        }
+
+        // 監聽並讀取存檔清單
+        function listenToConfigs() {
+            if (unsubscribe) unsubscribe();
+            if (!currentUser || !db) return;
+
+            const collRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'fireworks_configs');
+            
+            unsubscribe = onSnapshot(collRef, (snapshot) => {
+                const listEl = document.getElementById('savedConfigsList');
+                listEl.innerHTML = '';
+                
+                const docs = [];
+                snapshot.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+                
+                // 根據時間戳排序 (最新的在最上面)
+                docs.sort((a, b) => b.timestamp - a.timestamp);
+
+                if (docs.length === 0) {
+                    listEl.innerHTML = '<div class="text-sm text-slate-400 text-center py-2">目前沒有存檔</div>';
+                    return;
+                }
+
+                docs.forEach(data => {
+                    window.savedConfigsData[data.id] = data;
+                    
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm hover:bg-slate-100 transition";
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = "font-bold cursor-pointer text-slate-700 hover:text-emerald-600 truncate flex-1";
+                    nameSpan.innerText = `📂 ${data.name}`;
+                    nameSpan.onclick = () => window.loadConfig(data.id);
+                    
+                    const delBtn = document.createElement('button');
+                    delBtn.className = "text-slate-300 hover:text-red-500 ml-2 px-2 transition text-lg leading-none";
+                    delBtn.innerHTML = "🗑️";
+                    delBtn.title = "刪除此存檔";
+                    delBtn.onclick = () => window.deleteConfig(data.id);
+                    
+                    div.appendChild(nameSpan);
+                    div.appendChild(delBtn);
+                    listEl.appendChild(div);
+                });
+            }, (error) => {
+                console.error("Snapshot error", error);
+                showMsg("讀取存檔失敗", true);
+            });
+        }
+
+        // 儲存目前專案設定
+        window.saveCurrentConfig = async function() {
+            if (!currentUser || !db) {
+                showMsg("雲端連線中，請稍後...", true);
+                return;
+            }
+            const name = document.getElementById('configName').value.trim();
+            if (!name) {
+                showMsg("⚠️ 請輸入專案名稱", true);
+                return;
+            }
+
+            showMsg("儲存中...");
+
+            // 打包所有參數與經緯度資料
+            const data = {
+                name: name,
+                timestamp: new Date().getTime(),
+                fwInch: document.getElementById('fwInch').value,
+                fwPoints: document.getElementById('fwPoints').value,
+                fwWidth: document.getElementById('fwWidth').value,
+                safetyMargin: document.getElementById('safetyMargin').value,
+                landscapeMargin: document.getElementById('landscapeMargin').value,
+                siteAngle: document.getElementById('siteAngle').value,
+                fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
+                cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
+            };
+
+            try {
+                const collRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'fireworks_configs');
+                await addDoc(collRef, data);
+                document.getElementById('configName').value = '';
+                showMsg("✅ 儲存成功！");
+            } catch(e) {
+                console.error("Save error", e);
+                showMsg("❌ 儲存失敗", true);
+            }
+        };
+
+        // 刪除存檔
+        window.deleteConfig = async function(docId) {
+            if (!currentUser || !db) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'fireworks_configs', docId));
+                showMsg("✅ 刪除成功！");
+            } catch(e) {
+                console.error("Delete error", e);
+                showMsg("❌ 刪除失敗", true);
+            }
+        };
+
+        // 讀取並套用存檔
+        window.loadConfig = function(docId) {
+            const data = window.savedConfigsData[docId];
+            if(!data) return;
+
+            // 1. 復原數值輸入
+            document.getElementById('fwInch').value = data.fwInch || 12;
+            document.getElementById('fwPoints').value = data.fwPoints || 1;
+            document.getElementById('fwWidth').value = data.fwWidth || 100;
+            document.getElementById('safetyMargin').value = data.safetyMargin || 20;
+            document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
+            document.getElementById('siteAngle').value = data.siteAngle || 90;
+
+            // 2. 重置地圖畫面
+            window.resetMap();
+            
+            // 3. 重建物件標記
+            if (data.fireworkPos) {
+                window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
+                window.addMarker(window.fireworkPos, 'firework', '砲陣地');
+                document.getElementById('angleControlBox').classList.remove('hidden');
+            }
+            
+            if (data.cameraPos) {
+                window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
+                window.addMarker(window.cameraPos, 'camera', '拍攝點');
+            }
+            
+            // 4. 重算並移動地圖視野
+            if (window.fireworkPos && window.cameraPos) {
+                window.updateDistance(); // 同時會觸發 calculate()
+                window.fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
+                window.map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
+            } else if (window.fireworkPos) {
+                window.map.setView(window.fireworkPos, 15);
+                window.calculate();
+            } else {
+                window.calculate();
+            }
+
+            showMsg(`✅ 已成功載入「${data.name}」`);
+        };
     </script>
 </body>
 </html>
