@@ -149,9 +149,14 @@
 
     <!-- AR 相機取景模擬 Modal -->
     <div id="arModal" class="hidden fixed inset-0 z-[2000] bg-black flex flex-col">
-        <div class="p-4 flex justify-between items-center text-white z-10 bg-black/60 backdrop-blur">
-            <span class="font-bold">📷 現場比例草圖模擬</span>
-            <button onclick="closeAR()" class="bg-red-500 hover:bg-red-600 px-4 py-1 rounded font-bold text-sm">關閉 X</button>
+        <div class="p-3 flex justify-between items-center text-white z-10 bg-black/60 backdrop-blur">
+            <span class="font-bold text-sm md:text-base">📷 比例草圖模擬</span>
+            <div class="flex items-center gap-2">
+                <label class="text-xs text-slate-300 hidden md:block">相機等效焦距:</label>
+                <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-14 p-1 text-black text-center rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500" title="輸入手機鏡頭的等效焦距 (全片幅)">
+                <span class="text-xs text-slate-300">mm</span>
+                <button onclick="closeAR()" class="ml-2 bg-red-500 hover:bg-red-600 px-3 py-1 rounded font-bold text-sm">關閉 X</button>
+            </div>
         </div>
         <div class="relative flex-1 overflow-hidden bg-slate-900">
             <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
@@ -198,7 +203,7 @@
 
             map.on('click', onMapClick);
 
-            document.querySelectorAll('input').forEach(input => {
+            document.querySelectorAll('input:not(#arFocalLength)').forEach(input => {
                 input.addEventListener('input', calculate);
             });
         };
@@ -374,7 +379,7 @@
             }
         }
 
-        // ================= AR 相關函式 (已更新真實距離與透視) =================
+        // ================= AR 相關函式 (加入直橫幅偵測與等效焦距轉換) =================
         let arStream = null;
         let arAnimationId = null;
 
@@ -416,6 +421,7 @@
 
         function drawARSketch() {
             const canvas = document.getElementById('arCanvas');
+            if (!canvas.getContext) return;
             const ctx = canvas.getContext('2d');
             const cw = canvas.width;
             const ch = canvas.height;
@@ -434,9 +440,9 @@
 
             const groundY = ch * (1 - (landscapePct / 100));
 
-            // ====== 核心升級：真實距離與透視運算 ======
+            // ====== 核心升級：動態等效焦距與直橫幅偵測 ======
             let distance = 0;
-            let viewAngle = 90; // 預設正面
+            let viewAngle = 90;
 
             if (fireworkPos && cameraPos) {
                 distance = fireworkPos.distanceTo(cameraPos);
@@ -451,21 +457,37 @@
             let scaleHint = "";
 
             if (distance > 0) {
-                // 1. 真實距離縮放：模擬手機主鏡頭約 65 度水平視角 (FOV)
-                const fovH = 65 * (Math.PI / 180);
-                const focalLengthPx = (cw / 2) / Math.tan(fovH / 2);
-                scale = focalLengthPx / distance; // 1 公尺在螢幕上等於多少像素
-                scaleHint = `真實距離縮放 (${Math.round(distance)}m) | 視角 ${viewAngle}°`;
+                // 1. 偵測手機目前是直拿還是橫拿
+                const isPortrait = ch > cw;
+                const orientationText = isPortrait ? "直幅" : "橫幅";
+                
+                // 2. 獲取使用者設定的等效焦距 (預設23mm)
+                const userFocalLength = parseFloat(document.getElementById('arFocalLength').value) || 23;
+
+                // 3. 根據直橫幅決定感光元件的水平物理寬度
+                // 全片幅感光元件尺寸為 36mm x 24mm。橫向拿時，寬度是 36mm；直向拿時，寬度對應 24mm
+                const sensorWidth = isPortrait ? 24 : 36;
+                
+                // 4. 計算水平視野角 (FOV) - 弧度
+                const fovH_rad = 2 * Math.atan(sensorWidth / (2 * userFocalLength));
+                const fovDeg = Math.round(fovH_rad * 180 / Math.PI);
+                
+                // 5. 將視角轉換成螢幕像素的焦距
+                const focalLengthPx = (cw / 2) / Math.tan(fovH_rad / 2);
+                
+                // 6. 計算距離縮放比例 (螢幕上的像素/實際公尺)
+                scale = focalLengthPx / distance; 
+                
+                scaleHint = `${Math.round(distance)}m | ${orientationText} (FOV: ${fovDeg}°) | 視角 ${viewAngle}°`;
             } else {
-                // 2. 退回機制：若未設定拍攝點，自動縮放以看清結構
+                // 退回機制：若未設定距離，自動縮放
                 const scaleX = (cw * 0.8) / totalWidth;
                 const scaleY = (groundY * 0.8) / totalHeight;
                 scale = Math.min(scaleX, scaleY);
                 scaleHint = `自動縮放 (未設定距離)`;
             }
 
-            // 3. 視角透視壓縮：如果從側面看，陣地寬度會變窄 (sin 函數)
-            // 避免完全重疊，保留最少 5% 的寬度方便辨識
+            // 視角透視壓縮：如果從側面看，陣地寬度會變窄
             const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
             // ===========================================
 
@@ -489,7 +511,6 @@
             for (let i = 0; i < ptsCount; i++) {
                 let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
                 
-                // 使用透視壓縮後的寬度 (apparentW) 計算螢幕 X 座標
                 let distFromCenter = (fraction - 0.5) * apparentW; 
                 let pointX = cx + (distFromCenter * scale);
                 
@@ -519,10 +540,9 @@
             ctx.font = 'bold 14px sans-serif';
             ctx.textAlign = 'center';
             
-            // 繪製多行提示字以避免字被切掉
             ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 30);
-            ctx.fillStyle = 'rgba(252, 211, 77, 0.9)'; // Amber color
-            ctx.fillText(`比例：${scaleHint}`, cx, 50);
+            ctx.fillStyle = 'rgba(252, 211, 77, 0.9)'; 
+            ctx.fillText(`狀態：${scaleHint}`, cx, 50);
         }
 
         // ==========================================
