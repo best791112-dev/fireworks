@@ -148,29 +148,34 @@
     </div>
 
     <!-- AR 相機取景模擬 Modal -->
-    <div id="arModal" class="hidden fixed inset-0 z-[2000] bg-black flex flex-col">
-        <div class="p-3 flex flex-wrap justify-between items-center text-white z-10 bg-black/60 backdrop-blur gap-2">
-            <span class="font-bold text-sm md:text-base whitespace-nowrap">📷 比例草圖模擬</span>
+    <div id="arModal" class="hidden fixed inset-0 z-[2000] bg-black">
+        <!-- 將影片與 Canvas 設為絕對定位以填滿全螢幕 -->
+        <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
+        <canvas id="arCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+        
+        <!-- 頂部控制列改為浮層，漸層背景確保文字可見度，不佔用畫面空間 -->
+        <div class="absolute top-0 left-0 right-0 p-3 flex flex-wrap justify-between items-start text-white z-20 bg-gradient-to-b from-black/80 to-transparent gap-2 pb-10">
+            <span class="font-bold text-sm md:text-base whitespace-nowrap drop-shadow-md">📷 比例草圖模擬</span>
             <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-                <select id="arOrientation" onchange="drawARSketch()" class="p-1 text-black rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500">
+                <select id="arOrientation" onchange="drawARSketch()" class="p-1 text-black rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500 shadow-md">
                     <option value="auto">自動方向</option>
                     <option value="portrait">強制直幅</option>
                     <option value="landscape">強制橫幅</option>
                 </select>
-                <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-14 p-1 text-black text-center rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500" title="輸入手機鏡頭的等效焦距 (全片幅)">
-                <span class="text-xs text-slate-300">mm</span>
-                <button onclick="closeAR()" class="ml-1 md:ml-2 bg-red-500 hover:bg-red-600 px-3 py-1 rounded font-bold text-sm whitespace-nowrap">關閉 X</button>
+                <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-14 p-1 text-black text-center rounded text-sm outline-none focus:ring-2 focus:ring-emerald-500 shadow-md" title="輸入手機鏡頭的等效焦距 (全片幅)">
+                <span class="text-xs text-slate-200 drop-shadow-md">mm</span>
+                
+                <!-- 新增全螢幕按鈕 -->
+                <button onclick="toggleFullscreen()" class="ml-1 md:ml-2 bg-blue-500 hover:bg-blue-600 px-3 py-1 rounded font-bold text-sm whitespace-nowrap shadow-lg transition">⛶ 全螢幕</button>
+                <button onclick="closeAR()" class="ml-1 md:ml-2 bg-red-500 hover:bg-red-600 px-3 py-1 rounded font-bold text-sm whitespace-nowrap shadow-lg transition">關閉 X</button>
             </div>
         </div>
-        <div class="relative flex-1 overflow-hidden bg-slate-900">
-            <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
-            <canvas id="arCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
-            <div id="arWarning" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden z-0">
-                <div class="text-white/90 text-sm bg-black/80 p-5 rounded-xl text-center max-w-xs backdrop-blur-sm border border-white/20 pointer-events-auto">
-                    <p class="font-bold text-red-400 mb-2 text-lg">⚠️ 無法存取相機</p>
-                    <p>如果您不小心拒絕了權限，請手動<span class="text-emerald-400 font-bold">允許相機權限</span>後，重新整理網頁。</p>
-                    <p class="mt-2 text-white/50 text-xs">目前僅能顯示黑色背景的模擬草圖。</p>
-                </div>
+
+        <div id="arWarning" class="absolute inset-0 flex items-center justify-center pointer-events-none hidden z-30">
+            <div class="text-white/90 text-sm bg-black/80 p-5 rounded-xl text-center max-w-xs backdrop-blur-sm border border-white/20 pointer-events-auto shadow-2xl">
+                <p class="font-bold text-red-400 mb-2 text-lg">⚠️ 無法存取相機</p>
+                <p>如果您不小心拒絕了權限，請手動<span class="text-emerald-400 font-bold">允許相機權限</span>後，重新整理網頁。</p>
+                <p class="mt-2 text-white/50 text-xs">目前僅能顯示黑色背景的模擬草圖。</p>
             </div>
         </div>
     </div>
@@ -384,7 +389,7 @@
             }
         }
 
-        // ================= AR 相關函式 (修正自動縮放導致焦距無效的問題) =================
+        // ================= AR 相關函式 (加入全螢幕與覆蓋層設計) =================
         let arStream = null;
         let arAnimationId = null;
 
@@ -415,6 +420,37 @@
             }
             window.removeEventListener('resize', resizeCanvas);
             if(arAnimationId) cancelAnimationFrame(arAnimationId);
+
+            // 關閉時若處於全螢幕，則自動退出
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            }
+        }
+
+        // 切換全螢幕 API
+        function toggleFullscreen() {
+            const elem = document.getElementById('arModal');
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                // 進入全螢幕
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                }
+            } else {
+                // 退出全螢幕
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) { /* Safari */
+                    document.webkitExitFullscreen();
+                }
+            }
+            // 延遲更新以確保瀏覽器完成全螢幕過場
+            setTimeout(resizeCanvas, 300);
         }
 
         function resizeCanvas() {
@@ -450,7 +486,6 @@
             let viewAngle = 90;
             let isDefaultDistance = false;
 
-            // 判斷是否已經在地圖上設定了拍攝點與砲陣地
             if (fireworkPos && cameraPos) {
                 distance = fireworkPos.distanceTo(cameraPos);
                 const siteAngle = parseFloat(document.getElementById('siteAngle').value) || 0;
@@ -459,7 +494,6 @@
                 if (diff > 90) diff = 180 - diff;
                 viewAngle = Math.round(diff);
             } else {
-                // 如果沒點地圖，強迫給定 500 公尺的預設距離，這樣「等效焦距」的功能才會有反應！
                 distance = 500;
                 viewAngle = 90;
                 isDefaultDistance = true;
@@ -468,7 +502,6 @@
             let scale = 1;
             let scaleHint = "";
 
-            // 1. 偵測手機方向或使用使用者強制指定的方向
             const orientationMode = document.getElementById('arOrientation').value;
             let isPortrait;
             if (orientationMode === 'portrait') {
@@ -476,26 +509,16 @@
             } else if (orientationMode === 'landscape') {
                 isPortrait = false;
             } else {
-                isPortrait = ch > cw; // 自動偵測
+                isPortrait = ch > cw; 
             }
             
             const orientationText = isPortrait ? "直幅" : "橫幅";
-            
-            // 2. 獲取使用者設定的等效焦距 (預設23mm)
             const userFocalLength = parseFloat(document.getElementById('arFocalLength').value) || 23;
-
-            // 3. 根據直橫幅決定感光元件的水平物理寬度
-            // 全片幅感光元件尺寸為 36mm x 24mm。橫向拿時，寬度是 36mm；直向拿時，寬度對應 24mm
             const sensorWidth = isPortrait ? 24 : 36;
-            
-            // 4. 計算水平視野角 (FOV) - 弧度
             const fovH_rad = 2 * Math.atan(sensorWidth / (2 * userFocalLength));
             const fovDeg = Math.round(fovH_rad * 180 / Math.PI);
-            
-            // 5. 將視角轉換成螢幕像素的焦距
             const focalLengthPx = (cw / 2) / Math.tan(fovH_rad / 2);
             
-            // 6. 計算距離縮放比例 (螢幕上的像素/實際公尺)
             scale = focalLengthPx / distance; 
             
             if (isDefaultDistance) {
@@ -504,13 +527,9 @@
                 scaleHint = `${Math.round(distance)}m | ${orientationText} (FOV: ${fovDeg}°) | 視角 ${viewAngle}°`;
             }
 
-            // 視角透視壓縮：如果從側面看，陣地寬度會變窄
             const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
-            // ===========================================
-
             const cx = cw / 2;
 
-            // 畫地平線與取景框提示
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 5]);
@@ -524,7 +543,6 @@
             ctx.fillText(`地景預留線 (${landscapePct}%)`, 10, groundY - 5);
             ctx.setLineDash([]);
 
-            // 畫陣地與煙火草圖
             for (let i = 0; i < ptsCount; i++) {
                 let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
                 
@@ -553,13 +571,20 @@
                 ctx.fill();
             }
 
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            // 將文字往下移，避免與半透明控制列重疊
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.font = 'bold 14px sans-serif';
             ctx.textAlign = 'center';
+            // 添加文字陰影增加辨識度
+            ctx.shadowColor = "rgba(0,0,0,0.8)";
+            ctx.shadowBlur = 4;
             
-            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 30);
-            ctx.fillStyle = 'rgba(252, 211, 77, 0.9)'; 
-            ctx.fillText(`狀態：${scaleHint}`, cx, 50);
+            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 80);
+            ctx.fillStyle = 'rgba(252, 211, 77, 1)'; 
+            ctx.fillText(`狀態：${scaleHint}`, cx, 100);
+            
+            // 恢復陰影設定避免影響後續繪圖
+            ctx.shadowBlur = 0;
         }
 
         // ==========================================
