@@ -368,4 +368,606 @@
             document.getElementById('focalVertical').innerText = `-- mm`;
             document.getElementById('windForecast').innerHTML = '';
             document.getElementById('weatherStatus').innerText = '請在地圖上點擊以獲取氣象資料...';
-          
+            document.getElementById('angleControlBox').classList.add('hidden');
+            
+            autoSaveLocal();
+        }
+
+        function calculate() {
+            const inch = parseFloat(document.getElementById('fwInch').value) || 0;
+            const arrayWidth = parseFloat(document.getElementById('fwWidth').value) || 0;
+            const siteAngle = parseFloat(document.getElementById('siteAngle').value) || 0;
+            const elevationDiff = parseFloat(document.getElementById('elevationDiff').value) || 0;
+            
+            document.getElementById('siteAngleVal').innerText = `${siteAngle}°`;
+
+            const safety = 1 + (parseFloat(document.getElementById('safetyMargin').value) / 100);
+            document.getElementById('marginVal').innerText = `${Math.round((safety-1)*100)}%`;
+            
+            const landscapePct = parseFloat(document.getElementById('landscapeMargin').value) || 0;
+            document.getElementById('landscapeVal').innerText = `${landscapePct}%`;
+
+            const burstDia = inch * 28;
+            const altitude = inch * 32;
+            const totalHeight = altitude + (burstDia / 2);
+            const totalWidth = arrayWidth + burstDia;
+
+            const landscapeRatio = landscapePct / 100;
+            const virtualTotalHeight = totalHeight / (1 - landscapeRatio);
+
+            document.getElementById('estDia').innerText = `${Math.round(burstDia)} m`;
+            document.getElementById('estAlt').innerText = `${Math.round(altitude)} m`;
+            document.getElementById('estSceneHeight').innerText = `${Math.round(totalHeight)} m`;
+
+            if (fireworkPos && cameraPos) {
+                const distance = fireworkPos.distanceTo(cameraPos);
+                const slantDistance = Math.sqrt(distance * distance + elevationDiff * elevationDiff);
+                
+                const fH_w = (36 * slantDistance) / (totalWidth * safety);
+                const fH_h = (24 * slantDistance) / (virtualTotalHeight * safety);
+                const suggestH = Math.min(fH_w, fH_h);
+
+                const fV_w = (24 * slantDistance) / (totalWidth * safety);
+                const fV_h = (36 * slantDistance) / (virtualTotalHeight * safety);
+                const suggestV = Math.min(fV_w, fV_h);
+
+                document.getElementById('focalHorizontal').innerText = `${Math.floor(suggestH)} mm`;
+                document.getElementById('focalVertical').innerText = `${Math.floor(suggestV)} mm`;
+
+                const bearing = getBearing(fireworkPos, cameraPos);
+                let diff = Math.abs(bearing - siteAngle) % 180;
+                if (diff > 90) diff = 180 - diff;
+                const viewAngle = Math.round(diff);
+                
+                let angleHint = "";
+                if(viewAngle >= 75) angleHint = "(正面)";
+                else if(viewAngle <= 15) angleHint = "(側面)";
+                else angleHint = "(斜角)";
+                
+                const angleEl = document.getElementById('angleDisplay');
+                angleEl.innerText = `夾角: ${viewAngle}° ${angleHint}`;
+                angleEl.classList.remove('hidden');
+            }
+
+            updateLaunchSiteLine();
+            
+            syncToAR();
+
+            if(!document.getElementById('arModal').classList.contains('hidden')) {
+                drawARSketch();
+            }
+
+            if (!isAutoLoading) {
+                autoSaveLocal();
+            }
+        }
+
+        function syncToAR() {
+            const arInch = document.getElementById('arFwInch');
+            const arWidth = document.getElementById('arFwWidth');
+            const arPoints = document.getElementById('arFwPoints');
+            if(arInch) arInch.value = document.getElementById('fwInch').value;
+            if(arWidth) arWidth.value = document.getElementById('fwWidth').value;
+            if(arPoints) arPoints.value = document.getElementById('fwPoints').value;
+        }
+
+        function syncFromAR() {
+            document.getElementById('fwInch').value = document.getElementById('arFwInch').value;
+            document.getElementById('fwWidth').value = document.getElementById('arFwWidth').value;
+            document.getElementById('fwPoints').value = document.getElementById('arFwPoints').value;
+            calculate();
+        }
+
+        function getBearing(latlng1, latlng2) {
+            const lat1 = latlng1.lat * Math.PI / 180;
+            const lng1 = latlng1.lng * Math.PI / 180;
+            const lat2 = latlng2.lat * Math.PI / 180;
+            const lng2 = latlng2.lng * Math.PI / 180;
+            const dLng = lng2 - lng1;
+            const y = Math.sin(dLng) * Math.cos(lat2);
+            const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+            let brng = Math.atan2(y, x) * 180 / Math.PI;
+            return (brng + 360) % 360;
+        }
+
+        function getOffsetLatLng(latlng, distanceMeters, angleDeg) {
+            const lat = latlng.lat !== undefined ? latlng.lat : latlng[0];
+            const lng = latlng.lng !== undefined ? latlng.lng : latlng[1];
+            const latOffset = (distanceMeters * Math.cos(angleDeg * Math.PI / 180)) / 111320;
+            const lngOffset = (distanceMeters * Math.sin(angleDeg * Math.PI / 180)) / (111320 * Math.cos(lat * Math.PI / 180));
+            return [lat + latOffset, lng + lngOffset];
+        }
+
+        function updateLaunchSiteLine() {
+            if (siteLineGroup) map.removeLayer(siteLineGroup);
+            if (!fireworkPos) return;
+
+            const W = parseFloat(document.getElementById('fwWidth').value) || 0;
+            const angle = parseFloat(document.getElementById('siteAngle').value) || 0;
+            const ptsCount = parseInt(document.getElementById('fwPoints').value) || 1;
+            const inch = parseFloat(document.getElementById('fwInch').value) || 0;
+            const burstDia = inch * 28;
+
+            siteLineGroup = L.layerGroup().addTo(map);
+
+            const pt1 = getOffsetLatLng(fireworkPos, W/2, angle);
+            const pt2 = getOffsetLatLng(fireworkPos, W/2, angle + 180);
+
+            L.polyline([pt1, pt2], { color: '#f97316', weight: 6, opacity: 0.9 }).addTo(siteLineGroup);
+
+            for (let i = 0; i < ptsCount; i++) {
+                let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
+                let distFromCenter = (fraction - 0.5) * W; 
+                let ptLatLng = getOffsetLatLng(fireworkPos, Math.abs(distFromCenter), distFromCenter > 0 ? angle : angle + 180);
+
+                L.circle(ptLatLng, { radius: burstDia / 2, color: '#ef4444', weight: 1, fillOpacity: 0.05, dashArray: '5,5' }).addTo(siteLineGroup);
+                L.circleMarker(ptLatLng, { radius: 3, fillColor: '#fff', color: '#000', weight: 1, fillOpacity: 1 }).addTo(siteLineGroup);
+            }
+
+            if (W < 1000) {
+                const ptDash1 = getOffsetLatLng(fireworkPos, 500, angle);
+                const ptDash2 = getOffsetLatLng(fireworkPos, 500, angle + 180);
+                L.polyline([pt1, ptDash1], { color: '#f97316', weight: 4, dashArray: '8, 8', opacity: 0.6 }).addTo(siteLineGroup);
+                L.polyline([pt2, ptDash2], { color: '#f97316', weight: 4, dashArray: '8, 8', opacity: 0.6 }).addTo(siteLineGroup);
+            }
+        }
+
+        // ================= AR 相關函式 =================
+        let arStream = null;
+        let arAnimationId = null;
+
+        async function openAR() {
+            document.getElementById('arModal').classList.remove('hidden');
+            const video = document.getElementById('arVideo');
+            
+            try {
+                arStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" } 
+                });
+                video.srcObject = arStream;
+                document.getElementById('arWarning').classList.add('hidden');
+            } catch (err) {
+                document.getElementById('arWarning').classList.remove('hidden');
+            }
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            drawARSketch();
+        }
+
+        function closeAR() {
+            document.getElementById('arModal').classList.add('hidden');
+            if (arStream) {
+                arStream.getTracks().forEach(track => track.stop());
+                arStream = null;
+            }
+            window.removeEventListener('resize', resizeCanvas);
+            if(arAnimationId) cancelAnimationFrame(arAnimationId);
+
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            }
+        }
+
+        function toggleFullscreen() {
+            const elem = document.getElementById('arModal');
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            }
+            setTimeout(resizeCanvas, 300);
+        }
+
+        function resizeCanvas() {
+            const canvas = document.getElementById('arCanvas');
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            drawARSketch();
+        }
+
+        function drawARSketch() {
+            const canvas = document.getElementById('arCanvas');
+            if (!canvas.getContext) return;
+            const ctx = canvas.getContext('2d');
+            const cw = canvas.width;
+            const ch = canvas.height;
+
+            ctx.clearRect(0, 0, cw, ch);
+
+            const inch = parseFloat(document.getElementById('fwInch').value) || 0;
+            const W = parseFloat(document.getElementById('fwWidth').value) || 0;
+            const ptsCount = parseInt(document.getElementById('fwPoints').value) || 1;
+            const landscapePct = parseFloat(document.getElementById('landscapeMargin').value) || 0;
+            const elevationDiff = parseFloat(document.getElementById('elevationDiff').value) || 0;
+
+            const burstDia = inch * 28;
+            const altitude = inch * 32;
+            const totalHeight = altitude + (burstDia / 2);
+            const totalWidth = W + burstDia;
+
+            const groundY = ch * (1 - (landscapePct / 100));
+
+            let distance = 0;
+            let slantDistance = 500;
+            let viewAngle = 90;
+            let isDefaultDistance = false;
+
+            if (fireworkPos && cameraPos) {
+                distance = fireworkPos.distanceTo(cameraPos);
+                slantDistance = Math.sqrt(distance * distance + elevationDiff * elevationDiff);
+                const siteAngle = parseFloat(document.getElementById('siteAngle').value) || 0;
+                const bearing = getBearing(fireworkPos, cameraPos);
+                let diff = Math.abs(bearing - siteAngle) % 180;
+                if (diff > 90) diff = 180 - diff;
+                viewAngle = Math.round(diff);
+            } else {
+                slantDistance = 500;
+                viewAngle = 90;
+                isDefaultDistance = true;
+            }
+
+            let scale = 1;
+            let scaleHint = "";
+
+            const orientationMode = document.getElementById('arOrientation').value;
+            let isPortrait;
+            if (orientationMode === 'portrait') {
+                isPortrait = true;
+            } else if (orientationMode === 'landscape') {
+                isPortrait = false;
+            } else {
+                isPortrait = ch > cw; 
+            }
+            
+            const orientationText = isPortrait ? "直幅" : "橫幅";
+            const userFocalLength = parseFloat(document.getElementById('arFocalLength').value) || 23;
+            const sensorWidth = isPortrait ? 24 : 36;
+            const fovH_rad = 2 * Math.atan(sensorWidth / (2 * userFocalLength));
+            const fovDeg = Math.round(fovH_rad * 180 / Math.PI);
+            const focalLengthPx = (cw / 2) / Math.tan(fovH_rad / 2);
+            
+            scale = focalLengthPx / slantDistance; 
+            
+            let launchBaseY = groundY + (elevationDiff * scale);
+
+            if (isDefaultDistance) {
+                scaleHint = `⚠️ 預設 500m 模擬 | ${orientationText} (FOV: ${fovDeg}°)`;
+            } else {
+                scaleHint = `${Math.round(slantDistance)}m (含高低差斜距) | 視角 ${viewAngle}°`;
+            }
+
+            const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
+            const cx = cw / 2;
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(cw, groundY);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`相機水平視線 (0m)`, 10, groundY - 5);
+            ctx.setLineDash([]);
+
+            if (elevationDiff !== 0) {
+                ctx.strokeStyle = 'rgba(249, 115, 22, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(0, launchBaseY);
+                ctx.lineTo(cw, launchBaseY);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(249, 115, 22, 0.8)';
+                ctx.fillText(`陣地基準面 (${-elevationDiff}m)`, 10, launchBaseY - 5);
+                ctx.setLineDash([]);
+            }
+
+            for (let i = 0; i < ptsCount; i++) {
+                let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
+                
+                let distFromCenter = (fraction - 0.5) * apparentW; 
+                let pointX = cx + (distFromCenter * scale);
+                
+                let explodeY = launchBaseY - (altitude * scale);
+                let radiusPx = (burstDia / 2) * scale;
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(pointX, launchBaseY);
+                ctx.lineTo(pointX, explodeY);
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(pointX, explodeY, Math.max(radiusPx, 2), 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.fillStyle = 'rgba(249, 115, 22, 0.5)';
+                ctx.beginPath();
+                ctx.arc(pointX, explodeY, Math.max(radiusPx * 0.2, 2), 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = "rgba(0,0,0,0.8)";
+            ctx.shadowBlur = 4;
+            
+            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 100);
+            ctx.fillStyle = 'rgba(252, 211, 77, 1)'; 
+            ctx.fillText(`狀態：${scaleHint}`, cx, 120);
+            
+            ctx.shadowBlur = 0;
+        }
+
+        // ================= 瀏覽器本地快取自動存檔 =================
+        function autoSaveLocal() {
+            if (isAutoLoading || !map) return;
+            const data = {
+                fwInch: document.getElementById('fwInch').value,
+                fwPoints: document.getElementById('fwPoints').value,
+                fwWidth: document.getElementById('fwWidth').value,
+                elevationDiff: document.getElementById('elevationDiff').value,
+                safetyMargin: document.getElementById('safetyMargin').value,
+                landscapeMargin: document.getElementById('landscapeMargin').value,
+                siteAngle: document.getElementById('siteAngle').value,
+                fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
+                cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
+            };
+            localStorage.setItem('fireworks_autosave', JSON.stringify(data));
+        }
+
+        function autoLoadLocal() {
+            isAutoLoading = true; 
+            const saved = localStorage.getItem('fireworks_autosave');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    document.getElementById('fwInch').value = data.fwInch || 12;
+                    document.getElementById('fwPoints').value = data.fwPoints || 1;
+                    document.getElementById('fwWidth').value = data.fwWidth || 100;
+                    document.getElementById('elevationDiff').value = data.elevationDiff || 0;
+                    document.getElementById('safetyMargin').value = data.safetyMargin || 20;
+                    document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
+                    document.getElementById('siteAngle').value = data.siteAngle || 90;
+                    
+                    if (data.fireworkPos) {
+                        window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
+                        addMarker(window.fireworkPos, 'firework', '砲陣地');
+                        document.getElementById('angleControlBox').classList.remove('hidden');
+                    }
+                    
+                    if (data.cameraPos) {
+                        window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
+                        addMarker(window.cameraPos, 'camera', '拍攝點');
+                    }
+                    
+                    if (window.fireworkPos && window.cameraPos) {
+                        updateDistance(); 
+                        fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
+                        map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
+                    } else if (window.fireworkPos) {
+                        map.setView(window.fireworkPos, 15);
+                        calculate();
+                    } else {
+                        calculate();
+                    }
+                    showSaveMsg("🔄 已自動讀取上次設定與機位");
+                } catch (err) {
+                    calculate();
+                }
+            } else {
+                calculate();
+            }
+            isAutoLoading = false; 
+        }
+
+        // ================= JSON 檔案手動匯出 / 匯入 =================
+        window.exportConfig = function() {
+            const name = document.getElementById('configName').value.trim() || 'fireworks_config';
+            const data = {
+                name: name,
+                fwInch: document.getElementById('fwInch').value,
+                fwPoints: document.getElementById('fwPoints').value,
+                fwWidth: document.getElementById('fwWidth').value,
+                elevationDiff: document.getElementById('elevationDiff').value,
+                safetyMargin: document.getElementById('safetyMargin').value,
+                landscapeMargin: document.getElementById('landscapeMargin').value,
+                siteAngle: document.getElementById('siteAngle').value,
+                fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
+                cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showSaveMsg("✅ 已成功匯出設定檔");
+        };
+
+        window.importConfig = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    document.getElementById('configName').value = data.name || '';
+                    document.getElementById('fwInch').value = data.fwInch || 12;
+                    document.getElementById('fwPoints').value = data.fwPoints || 1;
+                    document.getElementById('fwWidth').value = data.fwWidth || 100;
+                    document.getElementById('elevationDiff').value = data.elevationDiff || 0;
+                    document.getElementById('safetyMargin').value = data.safetyMargin || 20;
+                    document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
+                    document.getElementById('siteAngle').value = data.siteAngle || 90;
+                    
+                    resetMap();
+                    
+                    if (data.fireworkPos) {
+                        window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
+                        addMarker(window.fireworkPos, 'firework', '砲陣地');
+                        document.getElementById('angleControlBox').classList.remove('hidden');
+                    }
+                    
+                    if (data.cameraPos) {
+                        window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
+                        addMarker(window.cameraPos, 'camera', '拍攝點');
+                    }
+                    
+                    if (window.fireworkPos && window.cameraPos) {
+                        updateDistance(); 
+                        fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
+                        map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
+                    } else if (window.fireworkPos) {
+                        map.setView(window.fireworkPos, 15);
+                        calculate();
+                    } else {
+                        calculate();
+                    }
+                    showSaveMsg(`✅ 已成功載入「${data.name || '設定檔'}」`);
+                } catch (err) {
+                    showSaveMsg("❌ 匯入失敗，檔案格式不正確", true);
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        };
+
+        function showSaveMsg(msg, isError = false) {
+            const el = document.getElementById('saveMsg');
+            if(!el) return;
+            el.textContent = msg;
+            el.className = `text-xs h-4 font-bold text-center block mt-1 ${isError ? 'text-red-500' : 'text-emerald-500'}`;
+            setTimeout(() => el.textContent = '', 3000);
+        }
+
+        // ==========================================
+
+        async function fetchWeather(lat, lng) {
+            document.getElementById('weatherStatus').innerText = '正在讀取氣象預報...';
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=windspeed_10m,winddirection_10m&current_weather=true&timezone=auto`;
+                const response = await fetch(url);
+                const data = await response.json();
+                displayWeather(data);
+            } catch (error) {
+                document.getElementById('weatherStatus').innerText = '無法獲取氣象資料。';
+            }
+        }
+
+        function displayWeather(data) {
+            const current = data.current_weather;
+            const hourly = data.hourly;
+            const forecastDiv = document.getElementById('windForecast');
+            forecastDiv.innerHTML = '';
+            
+            document.getElementById('weatherStatus').innerHTML = `目前位置氣溫: ${current.temperature}°C <br><span class="text-xs text-orange-500 font-bold mt-1 inline-block">💡 點擊下方時段，可於地圖預覽該時間風向</span>`;
+
+            let startIndex = hourly.time.findIndex(t => t === current.time);
+            if (startIndex === -1) startIndex = new Date().getHours();
+
+            let activeItem = null;
+
+            for (let i = 0; i <= 6; i++) {
+                const dataIndex = startIndex + i;
+                if (dataIndex >= hourly.time.length) break;
+
+                const timeObj = new Date(hourly.time[dataIndex]);
+                const hour = timeObj.getHours().toString().padStart(2, '0');
+                
+                const windDir = i === 0 ? current.winddirection : hourly.winddirection_10m[dataIndex];
+                const windSpd = i === 0 ? current.windspeed : hourly.windspeed_10m[dataIndex];
+                const label = i === 0 ? "現在" : `+${i}hr (${hour}:00)`;
+
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between bg-white p-2 rounded-lg text-sm shadow-sm cursor-pointer border-2 border-transparent hover:border-blue-300 transition-all";
+                item.innerHTML = `
+                    <span class="font-bold text-slate-500">${label}</span>
+                    <span class="flex items-center gap-2">
+                        <span style="display:inline-block; transform: rotate(${windDir}deg)">⬆️</span>
+                        ${getWindDirection(windDir)}
+                    </span>
+                    <span class="text-blue-600 font-medium">${windSpd} km/h</span>
+                `;
+
+                if (i === 0) {
+                    item.classList.add('border-blue-500', 'bg-blue-50');
+                    activeItem = item;
+                    updateWindArrow(windDir, label);
+                }
+
+                item.onclick = () => {
+                    if (activeItem) activeItem.classList.remove('border-blue-500', 'bg-blue-50');
+                    item.classList.add('border-blue-500', 'bg-blue-50');
+                    activeItem = item;
+                    updateWindArrow(windDir, label);
+                };
+
+                forecastDiv.appendChild(item);
+            }
+        }
+
+        function updateWindArrow(degree, timeLabel = "現在") {
+            if (windArrow) map.removeLayer(windArrow);
+            if (!fireworkPos || isNaN(degree)) return;
+            
+            const blowingToAngle = (degree + 180) % 360;
+            const endPoint = getOffsetLatLng(fireworkPos, 300, blowingToAngle);
+            
+            const leftPt = getOffsetLatLng(endPoint, 40, blowingToAngle + 150);
+            const rightPt = getOffsetLatLng(endPoint, 40, blowingToAngle - 150);
+
+            const line = L.polyline([fireworkPos, endPoint], {
+                color: '#a855f7',
+                weight: 5,
+                opacity: 0.6
+            }).bindTooltip(`煙霧飄向 (${timeLabel})`, {permanent: true, direction: 'top'});
+
+            const tip = L.polygon([endPoint, leftPt, rightPt], {
+                color: '#a855f7',
+                fillColor: '#a855f7',
+                fillOpacity: 0.8
+            });
+
+            windArrow = L.layerGroup([line, tip]).addTo(map);
+        }
+
+        function getWindDirection(deg) {
+            const directions = ['北', '北北東', '東北', '東北東', '東', '東南東', '東南', '南南東', '南', '南南西', '西南', '西南西', '西', '西北西', '西北', '北北西'];
+            const index = Math.round(deg / 22.5) % 16;
+            return directions[index];
+        }
+    </script>
+</body>
+</html>
+
+
+```
