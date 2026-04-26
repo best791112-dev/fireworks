@@ -3,13 +3,12 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>煙火攝影焦距與風向助手</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        #map { height: 500px; width: 100%; border-radius: 12px; }
         .glass-morphism {
             background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
@@ -19,6 +18,10 @@
         .leaflet-marker-icon.custom-div-icon {
             background: transparent;
             border: none;
+        }
+        /* 確保全螢幕影片不會被 Safari 擋住 */
+        video {
+            object-fit: cover;
         }
     </style>
 </head>
@@ -153,7 +156,8 @@
                 </div>
                 
                 <div class="relative">
-                    <div id="map"></div>
+                    <!-- 將高度寫死在 inline style 確保手機複製不出錯 -->
+                    <div id="map" style="height: 500px; width: 100%; border-radius: 12px; z-index: 1;"></div>
                     
                     <!-- 地圖浮動控制：旋轉觀賞面 -->
                     <div id="angleControlBox" class="hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000] w-11/12 max-w-sm bg-white/95 backdrop-blur px-5 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-slate-200 transition-all">
@@ -296,46 +300,42 @@
             }
         }
 
-        // ====== 升級：使用自訂 L.divIcon 來實作可拖曳標記 ======
         function addMarker(latlng, type, label) {
             const colorClass = type === 'firework' ? 'bg-red-500' : 'bg-blue-500';
             
             const customIcon = L.divIcon({
                 className: 'custom-div-icon',
-                html: `<div class="${colorClass} w-5 h-5 rounded-full border-[3px] border-white shadow-md"></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10], // 將錨點設在正中心
-                popupAnchor: [0, -10]
+                html: `<div class="${colorClass} w-6 h-6 rounded-full border-[3px] border-white shadow-md"></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12], 
+                popupAnchor: [0, -12]
             });
 
             const marker = L.marker(latlng, {
                 icon: customIcon,
-                draggable: true // 開啟拖曳功能
+                draggable: true 
             }).addTo(map).bindPopup(label).openPopup();
 
-            // 拖曳中：即時連動計算與畫面更新
             marker.on('drag', function(e) {
                 if (type === 'firework') {
                     fireworkPos = e.latlng;
                 } else {
                     cameraPos = e.latlng;
                 }
-                // 拖曳時即時更新距離線與各種參數
                 if (fireworkPos && cameraPos) {
                     const dist = fireworkPos.distanceTo(cameraPos);
                     document.getElementById('distanceDisplay').innerText = `距離: ${Math.round(dist)} 公尺`;
                     if (polyline) map.removeLayer(polyline);
                     polyline = L.polyline([fireworkPos, cameraPos], {color: 'blue', dashArray: '5, 10'}).addTo(map);
                 }
-                calculate(); // 即時觸發焦距與夾角重算
+                calculate(); 
             });
 
-            // 拖曳結束：更新氣象並儲存
             marker.on('dragend', function(e) {
                 if (type === 'firework') {
                     fetchWeather(fireworkPos.lat, fireworkPos.lng);
                 }
-                autoSaveLocal(); // 放開滑鼠時自動存檔
+                autoSaveLocal(); 
             });
 
             markers.push(marker);
