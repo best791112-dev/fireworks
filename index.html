@@ -123,7 +123,7 @@
                     <div class="flex flex-col gap-2">
                         <span class="text-xs font-bold text-slate-500">2. 雲端專案清單 (共 <span id="projectCount">0</span> 筆)</span>
                         <select id="projectSelector" onchange="window.selectProject()" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800 bg-slate-50">
-                            <option value="">-- 請先載入或新增專案 --</option>
+                            <option value="">-- 選擇專案以載入 --</option>
                         </select>
                     </div>
 
@@ -458,7 +458,48 @@
             reader.readAsDataURL(file);
         };
 
-        window.clearPhoto = function() {
+        // 從雲端硬碟刪除照片的共用函數
+        async function deletePhotoFromDrive(photoUrl) {
+            if (!photoUrl) return;
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            if (!gasUrl) return;
+
+            const match = photoUrl.match(/id=([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) {
+                const fileId = match[1];
+                try {
+                    await fetch(gasUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'deleteImage',
+                            fileId: fileId
+                        })
+                    });
+                } catch(e) {
+                    console.warn("從 Google Drive 刪除照片失敗:", e);
+                }
+            }
+        }
+
+        window.clearPhoto = async function() {
+            // 如果原本已經有雲端照片，詢問是否要連同雲端檔案一起刪除
+            if (currentPhotoUrl && confirm("確定要移除這張照片嗎？\n(這會同時將您的 Google 雲端硬碟檔案移至垃圾桶)")) {
+                showSaveMsg("☁️ 正在從雲端刪除照片...");
+                await deletePhotoFromDrive(currentPhotoUrl);
+                
+                if(currentProjectId && cloudData[currentProjectId]) {
+                    cloudData[currentProjectId].photoUrl = "";
+                    await syncToCloud("🗑️ 雲端照片已徹底移除");
+                }
+            } else if (!currentPhotoUrl) {
+                // 如果只是清空剛選好、還沒上傳的照片
+                showSaveMsg("🗑️ 照片已取消");
+            } else {
+                // 取消操作
+                return; 
+            }
+
             pendingPhotoBase64 = "";
             currentPhotoUrl = "";
             const previewImg = document.getElementById('projectPhotoPreview');
@@ -468,10 +509,6 @@
             document.getElementById('photoPreviewContainer').classList.add('hidden');
             document.getElementById('clearPhotoBtn').classList.add('hidden');
             document.getElementById('photoUpload').value = ""; 
-            if(currentProjectId && cloudData[currentProjectId]) {
-                cloudData[currentProjectId].photoUrl = "";
-            }
-            showSaveMsg("🗑️ 照片已移除");
         };
 
         async function uploadPhotoToDrive(projectName) {
@@ -494,7 +531,7 @@
                         action: 'uploadImage',
                         folderId: folderId,
                         base64: pendingPhotoBase64,
-                        name: projectName // 檔名直接使用專案名稱，移除日期後綴
+                        name: projectName // 檔名直接使用專案名稱
                     })
                 });
                 
@@ -1107,13 +1144,18 @@
         window.selectProject = function() {
             const id = document.getElementById('projectSelector').value;
             if (!id) {
-                // 新增：處理選擇空白項目時，清空所有設定與照片
                 currentProjectId = null;
                 document.getElementById('configName').value = '';
-                window.clearPhoto();
                 
                 isAutoLoading = true;
-                applyDataToView({}, false); // 套用空資料(恢復預設值)
+                // 不使用 confirm 因為只是切換回空白，不是真的要刪照片
+                pendingPhotoBase64 = "";
+                currentPhotoUrl = "";
+                document.getElementById('projectPhotoPreview').src = "";
+                document.getElementById('photoPreviewContainer').classList.add('hidden');
+                document.getElementById('clearPhotoBtn').classList.add('hidden');
+                
+                applyDataToView({}, false); 
                 isAutoLoading = false;
                 
                 showSaveMsg("🔄 已重置為空白設定");
@@ -1189,12 +1231,26 @@
             }
 
             if(confirm(`確定要刪除專案「${cloudData[currentProjectId].name}」嗎？此動作無法復原。`)) {
+                // 如果該專案有雲端照片，一併從雲端硬碟刪除
+                if (cloudData[currentProjectId].photoUrl) {
+                    showSaveMsg("☁️ 正在清除相關雲端照片...");
+                    await deletePhotoFromDrive(cloudData[currentProjectId].photoUrl);
+                }
+
                 delete cloudData[currentProjectId];
                 currentProjectId = null;
                 document.getElementById('configName').value = '';
                 document.getElementById('projectSelector').value = '';
-                window.clearPhoto();
-                await syncToCloud("✅ 已成功刪除專案");
+                
+                // 安靜地清理畫面，不觸發 clearPhoto 的警告
+                pendingPhotoBase64 = "";
+                currentPhotoUrl = "";
+                document.getElementById('projectPhotoPreview').src = "";
+                document.getElementById('photoPreviewContainer').classList.add('hidden');
+                document.getElementById('clearPhotoBtn').classList.add('hidden');
+                document.getElementById('photoUpload').value = ""; 
+                
+                await syncToCloud("✅ 已成功刪除專案與照片");
             }
         };
 
