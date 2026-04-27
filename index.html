@@ -754,8 +754,7 @@
             ctx.shadowColor = "rgba(0,0,0,0.8)";
             ctx.shadowBlur = 4;
             const modeText = dslrInputVal ? "自訂" : "自動建議";
-            ctx.fillText(`📸 單眼取景框: ${Math.round(targetDslrFocal)}mm (${modeText})`, dslrX + 5, dslrY + 20);
-
+            
             // 底部狀態提示
             let scaleHint = isDefaultDistance ? 
                 `⚠️ 預設 500m 模擬 | 手機 ${orientationText} (FOV: ${phoneFovDeg}°)` : 
