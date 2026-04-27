@@ -29,6 +29,7 @@
 
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
         
+        <!-- 左側控制面板 -->
         <div class="lg:col-span-1 space-y-6">
             <div class="glass-morphism p-6 rounded-2xl shadow-xl">
                 <h1 class="text-2xl font-bold mb-4 flex items-center gap-2">
@@ -99,12 +100,14 @@
                 </div>
             </div>
 
+            <!-- 雲端專案管理庫 -->
             <div class="glass-morphism p-6 rounded-2xl shadow-xl">
                 <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
                     <span class="text-emerald-500">☁️</span> 雲端專案管理庫
                 </h2>
                 <div class="space-y-4">
                     
+                    <!-- Google Apps Script 網址與資料夾設定 -->
                     <div class="flex flex-col gap-2 border-b border-slate-200 pb-4">
                         <span class="text-xs font-bold text-slate-500">1. 雲端環境設定 (Google Sheets & Drive)</span>
                         <div class="flex gap-2">
@@ -116,6 +119,7 @@
                         <input type="text" id="driveFolderId" placeholder="輸入 Google Drive 資料夾 ID (用於存照片，選填)" title="若要上傳照片，請貼上您雲端資料夾網址最後的那串代碼" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
                     </div>
 
+                    <!-- 專案清單 -->
                     <div class="flex flex-col gap-2">
                         <span class="text-xs font-bold text-slate-500">2. 雲端專案清單 (共 <span id="projectCount">0</span> 筆)</span>
                         <select id="projectSelector" onchange="window.selectProject()" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800 bg-slate-50">
@@ -123,10 +127,12 @@
                         </select>
                     </div>
 
+                    <!-- 編輯與儲存動作 -->
                     <div class="flex flex-col gap-3 pt-2 border-t border-slate-200">
                         <span class="text-xs font-bold text-slate-500">3. 專案編輯與照片記錄</span>
                         <input type="text" id="configName" placeholder="專案名稱 (例: 101煙火拍攝點)" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
                         
+                        <!-- 現場照片上傳區 -->
                         <div class="flex items-center gap-3">
                             <label class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg text-sm font-bold shadow transition cursor-pointer flex-1 text-center whitespace-nowrap">
                                 📸 附加現場照片
@@ -137,12 +143,18 @@
                             </button>
                         </div>
                         
+                        <!-- 預覽縮圖容器 (加入超連結與防破圖機制) -->
                         <div id="photoPreviewContainer" class="hidden relative w-full h-40 bg-slate-100 rounded-lg overflow-hidden shadow-inner border border-slate-200 group">
-                            <a id="photoLink" href="#" target="_blank" class="block w-full h-full" title="點擊開啟原圖">
-                                <img id="projectPhotoPreview" src="" alt="現場預覽" class="w-full h-full object-cover transition-opacity group-hover:opacity-80" 
-                                     onerror="this.onerror=null; this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100%\' height=\'100%\'><rect width=\'100%\' height=\'100%\' fill=\'%23f1f5f9\'/><text x=\'50%\' y=\'50%\' font-family=\'sans-serif\' font-size=\'14\' font-weight=\'bold\' fill=\'%2364748b\' text-anchor=\'middle\' dy=\'.3em\'>圖片無法預覽，請點擊此處開啟 ↗</text></svg>';">
+                            <a id="photoLink" href="#" target="_blank" class="block w-full h-full relative" title="點擊開啟原圖">
+                                <!-- 底部墊層文字，當圖片載入失敗時顯示 -->
+                                <div class="absolute inset-0 flex items-center justify-center text-slate-400 text-xs font-bold px-4 text-center z-0">
+                                    如果圖片無法顯示，請點擊此處直接開啟 ↗
+                                </div>
+                                <!-- 實際圖片，加入 onerror 自動隱藏功能 -->
+                                <img id="projectPhotoPreview" src="" alt="現場預覽" class="w-full h-full object-cover transition-opacity group-hover:opacity-80 relative z-10" 
+                                     onerror="this.style.display='none';">
                             </a>
-                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 text-center backdrop-blur-sm pointer-events-none" id="photoStatusText">
+                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 text-center backdrop-blur-sm pointer-events-none z-20" id="photoStatusText">
                                 準備上傳至雲端硬碟...
                             </div>
                         </div>
@@ -164,18 +176,22 @@
                 </div>
             </div>
 
+            <!-- 風向資訊 -->
             <div class="glass-morphism p-6 rounded-2xl shadow-xl">
                 <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
                     <span class="text-blue-500">🌬️</span> 風向與氣象預測
                 </h2>
                 <div id="weatherStatus" class="text-sm text-slate-500 mb-4 italic">請在地圖上點擊以獲取氣象資料...</div>
                 <div id="windForecast" class="space-y-3">
-                    </div>
+                    <!-- 風向清單 -->
+                </div>
             </div>
         </div>
 
+        <!-- 右側地圖區域 -->
         <div class="lg:col-span-2 space-y-4">
             
+            <!-- 地圖搜尋與定位工具列 -->
             <div class="flex flex-col sm:flex-row gap-2 bg-white/60 p-2 rounded-2xl shadow border border-white backdrop-blur">
                 <input type="text" id="mapSearch" placeholder="🔍 搜尋地標 (例: 台北101) 或經緯度 (例: 25.033, 121.564)" class="flex-1 p-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800 bg-white">
                 <div class="flex gap-2">
@@ -200,6 +216,7 @@
                 <div class="relative">
                     <div id="map" style="height: 500px; width: 100%; border-radius: 12px; background-color: #e5e7eb;"></div>
                     
+                    <!-- 地圖浮動控制：旋轉觀賞面 -->
                     <div id="angleControlBox" class="hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000] w-11/12 max-w-sm bg-white/95 backdrop-blur px-5 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-slate-200 transition-all">
                         <label class="block text-sm font-bold text-slate-700 mb-2 text-center flex items-center justify-center gap-2">
                             <span>🔄 旋轉觀賞面</span>
@@ -232,6 +249,7 @@
 
     </div>
 
+    <!-- AR 相機取景模擬 Modal -->
     <div id="arModal" class="hidden fixed inset-0 z-[2000] bg-black">
         <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
         <canvas id="arCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
@@ -286,6 +304,7 @@
         </div>
     </div>
 
+    <!-- 用於隱藏處理照片壓縮的 Canvas -->
     <canvas id="imageCompressCanvas" style="display:none;"></canvas>
 
     <script>
@@ -347,6 +366,17 @@
             // 自動讀取上次的設定，並嘗試連線
             autoLoadLocalAndCloud();
         };
+
+        // ================= URL 轉換神器 (繞過 Google Drive 限制) =================
+        function formatDriveImageUrl(url) {
+            if (!url) return "";
+            // 將原本會被擋的 uc?id=xxx 轉換成 thumbnail?id=xxx，這樣就能顯示在網頁裡了
+            const match = url.match(/id=([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) {
+                return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+            }
+            return url;
+        }
 
         // ================= 啟動自動化流程 =================
         async function autoLoadLocalAndCloud() {
@@ -414,6 +444,7 @@
                     pendingPhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
                     
                     const previewImg = document.getElementById('projectPhotoPreview');
+                    previewImg.style.display = 'block'; // 解除 onerror 的隱藏設定
                     previewImg.src = pendingPhotoBase64;
                     document.getElementById('photoLink').href = "#"; // 本機暫存無法另開分頁
                     document.getElementById('photoPreviewContainer').classList.remove('hidden');
@@ -430,7 +461,9 @@
         window.clearPhoto = function() {
             pendingPhotoBase64 = "";
             currentPhotoUrl = "";
-            document.getElementById('projectPhotoPreview').src = "";
+            const previewImg = document.getElementById('projectPhotoPreview');
+            previewImg.src = "";
+            previewImg.style.display = 'block';
             document.getElementById('photoLink').href = "#";
             document.getElementById('photoPreviewContainer').classList.add('hidden');
             document.getElementById('clearPhotoBtn').classList.add('hidden');
@@ -1182,7 +1215,9 @@
             pendingPhotoBase64 = ""; 
             
             if(currentPhotoUrl) {
-                document.getElementById('projectPhotoPreview').src = currentPhotoUrl;
+                const previewImg = document.getElementById('projectPhotoPreview');
+                previewImg.style.display = 'block'; // 重置 onerror 隱藏的狀態
+                previewImg.src = formatDriveImageUrl(currentPhotoUrl);
                 document.getElementById('photoLink').href = currentPhotoUrl;
                 document.getElementById('photoPreviewContainer').classList.remove('hidden');
                 document.getElementById('clearPhotoBtn').classList.remove('hidden');
