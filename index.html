@@ -434,8 +434,7 @@
             const folderId = document.getElementById('driveFolderId').value.trim();
 
             if (!folderId) {
-                showSaveMsg("⚠️ 尚未設定 Google Drive 資料夾 ID，無法上傳照片", true);
-                throw new Error("Missing Folder ID");
+                throw new Error("請先在上方輸入 Google Drive 資料夾 ID");
             }
 
             showSaveMsg("☁️ 正在上傳照片至 Google Drive...");
@@ -452,17 +451,24 @@
                     })
                 });
                 
-                const result = await res.json();
+                const textRes = await res.text();
+                let result;
+                try {
+                    result = JSON.parse(textRes);
+                } catch(e) {
+                    throw new Error("GAS 回傳錯誤 (請確認 Apps Script 已部署為『新版本』)");
+                }
+
                 if (result.status === 'ok') {
                     pendingPhotoBase64 = ""; // 上傳成功，清空待上傳的暫存
                     document.getElementById('photoStatusText').innerText = "✅ 圖片已安全儲存在您的 Google Drive";
                     return result.url;
                 } else {
-                    throw new Error(result.message);
+                    throw new Error(result.message || "未知錯誤");
                 }
             } catch(e) {
-                console.error(e);
-                throw new Error("上傳失敗");
+                console.error("Upload Error:", e);
+                throw new Error(e.message || "上傳照片失敗");
             }
         }
 
@@ -1098,7 +1104,8 @@
 
                 await syncToCloud("✅ 已成功新增專案 (含照片)");
             } catch(e) {
-                // 發生錯誤不影響操作，會在 upload 階段顯示錯誤
+                console.error(e);
+                showSaveMsg("❌ 新增失敗: " + e.message, true);
             }
         };
 
@@ -1121,7 +1128,10 @@
 
                 cloudData[currentProjectId] = getCurrentSettingsData();
                 await syncToCloud("✅ 已成功更新覆蓋專案");
-            } catch(e) {}
+            } catch(e) {
+                console.error(e);
+                showSaveMsg("❌ 更新失敗: " + e.message, true);
+            }
         };
 
         window.deleteCurrentProject = async function() {
