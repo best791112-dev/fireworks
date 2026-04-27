@@ -100,31 +100,50 @@
                 </div>
             </div>
 
-            <!-- 自動存檔與手動備份 -->
+            <!-- 雲端專案管理庫 -->
             <div class="glass-morphism p-6 rounded-2xl shadow-xl">
                 <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-                    <span class="text-emerald-500">💾</span> 設定存檔與備份
+                    <span class="text-emerald-500">☁️</span> 雲端專案管理庫
                 </h2>
-                <div class="space-y-3">
-                    <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-800 flex items-start gap-2">
-                        <span class="text-lg">✨</span>
-                        <p>系統會<strong>自動儲存</strong>您的設定與地圖機位。下次打開此網頁時將自動讀取！</p>
+                <div class="space-y-4">
+                    
+                    <!-- Google Apps Script 網址 -->
+                    <div class="flex flex-col gap-2 border-b border-slate-200 pb-4">
+                        <span class="text-xs font-bold text-slate-500">1. Google Apps Script 網址 (儲存至試算表)</span>
+                        <div class="flex gap-2">
+                            <input type="text" id="gasUrl" placeholder="輸入 Apps Script 部署網址" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
+                            <button onclick="window.loadFromGoogleSheets()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow transition whitespace-nowrap">
+                                連線載入
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="flex flex-col gap-2 pt-3 border-t border-slate-200">
-                        <span class="text-xs font-bold text-slate-500">手動備份 / 分享機位給朋友 (JSON)</span>
-                        <input type="text" id="configName" placeholder="輸入專案名稱 (例: 101跨年)" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
-                        <div class="flex gap-2">
-                            <button onclick="window.exportConfig()" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition flex items-center justify-center gap-1">
-                                <span>📥</span> 匯出
-                            </button>
-                            <label class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition cursor-pointer flex items-center justify-center gap-1">
-                                <span>📤</span> 匯入
-                                <input type="file" id="importFile" accept=".json" class="hidden" onchange="window.importConfig(event)">
-                            </label>
-                        </div>
-                        <span id="saveMsg" class="text-xs h-4 font-bold text-center block mt-1"></span>
+                    <!-- 專案清單 -->
+                    <div class="flex flex-col gap-2">
+                        <span class="text-xs font-bold text-slate-500">2. 雲端專案清單 (共 <span id="projectCount">0</span> 筆)</span>
+                        <select id="projectSelector" onchange="window.selectProject()" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800 bg-slate-50">
+                            <option value="">-- 請先載入或新增專案 --</option>
+                        </select>
                     </div>
+
+                    <!-- 編輯與儲存動作 -->
+                    <div class="flex flex-col gap-2 pt-2 border-t border-slate-200">
+                        <span class="text-xs font-bold text-slate-500">3. 專案編輯與儲存</span>
+                        <input type="text" id="configName" placeholder="專案名稱 (例: 101煙火拍攝點)" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
+                        <div class="flex gap-2">
+                            <button onclick="window.saveProjectAsNew()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-2 rounded-lg text-sm font-bold shadow transition text-center whitespace-nowrap">
+                                ➕ 新增儲存
+                            </button>
+                            <button onclick="window.updateCurrentProject()" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white px-2 py-2 rounded-lg text-sm font-bold shadow transition text-center whitespace-nowrap">
+                                🔄 更新覆蓋
+                            </button>
+                            <button onclick="window.deleteCurrentProject()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow transition text-center" title="刪除目前選擇的專案">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <span id="saveMsg" class="text-xs h-4 font-bold text-center block mt-1"></span>
                 </div>
             </div>
 
@@ -142,6 +161,16 @@
 
         <!-- 右側地圖區域 -->
         <div class="lg:col-span-2 space-y-4">
+            
+            <!-- 地圖搜尋與定位工具列 -->
+            <div class="flex flex-col sm:flex-row gap-2 bg-white/60 p-2 rounded-2xl shadow border border-white backdrop-blur">
+                <input type="text" id="mapSearch" placeholder="🔍 搜尋地標 (例: 台北101) 或經緯度 (例: 25.033, 121.564)" class="flex-1 p-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800 bg-white">
+                <div class="flex gap-2">
+                    <button onclick="searchLocation()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow transition whitespace-nowrap">前往</button>
+                    <button onclick="locateMe()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow transition whitespace-nowrap flex items-center gap-1">📍 我的位置</button>
+                </div>
+            </div>
+
             <div class="glass-morphism p-4 rounded-2xl shadow-xl">
                 <div class="flex flex-wrap gap-4 mb-3 items-center justify-between">
                     <div class="flex gap-2 text-sm">
@@ -152,7 +181,7 @@
                         <div id="distanceDisplay" class="font-bold text-lg text-blue-600">距離: -- 公尺</div>
                         <div id="angleDisplay" class="font-bold text-lg text-emerald-600 hidden">夾角: --°</div>
                     </div>
-                    <button onclick="resetMap()" class="text-sm bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-md transition">重設位置</button>
+                    <button onclick="resetMap()" class="text-sm bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-md transition">重設標記</button>
                 </div>
                 
                 <div class="relative">
@@ -218,7 +247,7 @@
                     <span class="text-white text-[10px]">mm</span>
                 </div>
 
-                <!-- 新增：單眼取景框輸入欄位 -->
+                <!-- 單眼取景框輸入欄位 -->
                 <div class="bg-sky-900/80 px-2 py-1 rounded backdrop-blur border border-sky-400 flex items-center gap-1 shadow-md">
                     <label class="text-sky-100 text-[10px] whitespace-nowrap font-bold">單眼取景框:</label>
                     <input type="number" id="arDslrFocal" placeholder="自動" oninput="drawARSketch()" class="w-12 p-0.5 text-black text-center rounded text-xs outline-none" title="輸入單眼焦段，留空則顯示系統建議的完美焦距框">
@@ -257,6 +286,10 @@
         var siteLineGroup = null;
         var isAutoLoading = false; 
 
+        // 雲端資料庫狀態
+        var cloudData = {};
+        var currentProjectId = null;
+
         window.onload = function() {
             map = L.map('map').setView([25.0339, 121.5644], 15);
             
@@ -279,7 +312,16 @@
 
             map.on('click', onMapClick);
 
-            document.querySelectorAll('input:not([id^="ar"]').forEach(input => {
+            // ================= 地圖定位事件綁定 (移入 window.onload 內) =================
+            map.on('locationfound', function(e) {
+                L.popup().setLatLng(e.latlng).setContent("📍 您目前的位置").openOn(map);
+            });
+
+            map.on('locationerror', function(e) {
+                alert("無法取得定位，請確認是否允許瀏覽器存取位置權限。");
+            });
+
+            document.querySelectorAll('input:not([id^="ar"], #gasUrl, #mapSearch, #configName)').forEach(input => {
                 input.addEventListener('input', calculate);
             });
 
@@ -289,8 +331,51 @@
                 }
             }, 500);
 
+            // 自動讀取上次的 GAS Url
+            const savedGasUrl = safeGetStorage('fireworks_gas_url');
+            if(savedGasUrl) {
+                document.getElementById('gasUrl').value = savedGasUrl;
+            }
+
             autoLoadLocal();
         };
+
+        // ================= 地圖定位與搜尋功能 =================
+        function locateMe() {
+            map.locate({setView: true, maxZoom: 16});
+        }
+        
+        async function searchLocation() {
+            const query = document.getElementById('mapSearch').value.trim();
+            if(!query) return;
+
+            // 檢查是否為經緯度格式 (如: 25.033, 121.564)
+            const coordMatch = query.match(/^([-+]?\d{1,2}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)$/);
+            if(coordMatch) {
+                const lat = parseFloat(coordMatch[1]);
+                const lng = parseFloat(coordMatch[2]);
+                map.setView([lat, lng], 16);
+                return;
+            }
+
+            // 使用 OpenStreetMap Nominatim API 進行地標搜尋
+            try {
+                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                if(data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lng = parseFloat(data[0].lon);
+                    map.setView([lat, lng], 16);
+                    L.popup().setLatLng([lat, lng]).setContent(data[0].display_name).openOn(map);
+                } else {
+                    alert("找不到該地點，請嘗試使用其他關鍵字（或直接輸入經緯度）。");
+                }
+            } catch(e) {
+                alert("搜尋發生錯誤，請檢查網路連線。");
+            }
+        }
+
+        // ====================================================
 
         function onMapClick(e) {
             if (!fireworkPos) {
@@ -450,13 +535,16 @@
         function syncToAR() {
             const arInch = document.getElementById('arFwInch');
             const arWidth = document.getElementById('arFwWidth');
+            const arPoints = document.getElementById('arFwPoints');
             if(arInch) arInch.value = document.getElementById('fwInch').value;
             if(arWidth) arWidth.value = document.getElementById('fwWidth').value;
+            if(arPoints) arPoints.value = document.getElementById('fwPoints').value;
         }
 
         function syncFromAR() {
             document.getElementById('fwInch').value = document.getElementById('arFwInch').value;
             document.getElementById('fwWidth').value = document.getElementById('arFwWidth').value;
+            document.getElementById('fwPoints').value = document.getElementById('arFwPoints').value;
             calculate();
         }
 
@@ -699,7 +787,6 @@
                 ctx.setLineDash([]);
             }
 
-            // 畫煙火草圖
             for (let i = 0; i < ptsCount; i++) {
                 let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
                 let distFromCenter = (fraction - 0.5) * apparentW; 
@@ -747,14 +834,6 @@
             ctx.lineTo(cx, dslrY + dslrFrameHeightPx / 2 + 15);
             ctx.stroke();
 
-            // 單眼框文字標籤
-            ctx.fillStyle = 'rgba(56, 189, 248, 1)';
-            ctx.font = 'bold 13px sans-serif';
-            ctx.textAlign = 'left';
-            ctx.shadowColor = "rgba(0,0,0,0.8)";
-            ctx.shadowBlur = 4;
-            const modeText = dslrInputVal ? "自訂" : "自動建議";
-            
             // 底部狀態提示
             let scaleHint = isDefaultDistance ? 
                 `⚠️ 預設 500m 模擬 | 手機 ${orientationText} (FOV: ${phoneFovDeg}°)` : 
@@ -770,7 +849,7 @@
             ctx.shadowBlur = 0;
         }
 
-        // ================= 瀏覽器本地快取自動存檔 安全處理 =================
+        // ================= 安全儲存與雲端存檔邏輯 =================
         function safeGetStorage(key) {
             try { return localStorage.getItem(key); } 
             catch (e) { return null; }
@@ -778,12 +857,20 @@
 
         function safeSetStorage(key, value) {
             try { localStorage.setItem(key, value); } 
-            catch (e) { console.warn("Local storage is disabled in this environment."); }
+            catch (e) { console.warn("Local storage is disabled."); }
         }
 
-        function autoSaveLocal() {
-            if (isAutoLoading || !map) return;
-            const data = {
+        // 產生獨立的專案 ID
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function getCurrentSettingsData() {
+            return {
+                name: document.getElementById('configName').value.trim(),
                 fwInch: document.getElementById('fwInch').value,
                 fwPoints: document.getElementById('fwPoints').value,
                 fwWidth: document.getElementById('fwWidth').value,
@@ -795,47 +882,20 @@
                 fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
                 cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
             };
-            safeSetStorage('fireworks_autosave', JSON.stringify(data));
+        }
+
+        function autoSaveLocal() {
+            if (isAutoLoading || !map) return;
+            safeSetStorage('fireworks_autosave', JSON.stringify(getCurrentSettingsData()));
         }
 
         function autoLoadLocal() {
             isAutoLoading = true; 
             const saved = safeGetStorage('fireworks_autosave');
-            
             if (saved) {
                 try {
                     const data = JSON.parse(saved);
-                    document.getElementById('fwInch').value = data.fwInch || 12;
-                    document.getElementById('fwPoints').value = data.fwPoints || 1;
-                    document.getElementById('fwWidth').value = data.fwWidth || 100;
-                    document.getElementById('elevationDiff').value = data.elevationDiff || 0;
-                    document.getElementById('safetyMargin').value = data.safetyMargin || 20;
-                    document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
-                    document.getElementById('siteAngle').value = data.siteAngle || 90;
-                    document.getElementById('arDslrFocal').value = data.arDslrFocal || '';
-                    
-                    if (data.fireworkPos) {
-                        window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
-                        addMarker(window.fireworkPos, 'firework', '砲陣地');
-                        document.getElementById('angleControlBox').classList.remove('hidden');
-                    }
-                    
-                    if (data.cameraPos) {
-                        window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
-                        addMarker(window.cameraPos, 'camera', '拍攝點');
-                    }
-                    
-                    if (window.fireworkPos && window.cameraPos) {
-                        updateDistance(); 
-                        fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
-                        map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
-                    } else if (window.fireworkPos) {
-                        map.setView(window.fireworkPos, 15);
-                        calculate();
-                    } else {
-                        calculate();
-                    }
-                    showSaveMsg("🔄 已自動讀取上次設定與機位");
+                    applyDataToView(data, false);
                 } catch (err) {
                     calculate();
                 }
@@ -845,87 +905,161 @@
             isAutoLoading = false; 
         }
 
-        // ================= JSON 檔案手動匯出 / 匯入 =================
-        window.exportConfig = function() {
-            const name = document.getElementById('configName').value.trim() || 'fireworks_config';
-            const data = {
-                name: name,
-                fwInch: document.getElementById('fwInch').value,
-                fwPoints: document.getElementById('fwPoints').value,
-                fwWidth: document.getElementById('fwWidth').value,
-                elevationDiff: document.getElementById('elevationDiff').value,
-                safetyMargin: document.getElementById('safetyMargin').value,
-                landscapeMargin: document.getElementById('landscapeMargin').value,
-                siteAngle: document.getElementById('siteAngle').value,
-                arDslrFocal: document.getElementById('arDslrFocal').value,
-                fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
-                cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
-            };
+        // --- 雲端專案庫邏輯 ---
+        function refreshProjectList() {
+            const selector = document.getElementById('projectSelector');
+            selector.innerHTML = '<option value="">-- 選擇專案以載入 --</option>';
+            let count = 0;
+            for (let id in cloudData) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = cloudData[id].name || "未命名專案";
+                selector.appendChild(opt);
+                count++;
+            }
+            document.getElementById('projectCount').innerText = count;
+            if(currentProjectId && cloudData[currentProjectId]) {
+                selector.value = currentProjectId;
+            }
+        }
 
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
+        window.loadFromGoogleSheets = async function() {
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            if (!gasUrl) { showSaveMsg('請先輸入 Apps Script 網址', true); return; }
+
+            safeSetStorage('fireworks_gas_url', gasUrl);
+            showSaveMsg("☁️ 連線載入中...");
             
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${name}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showSaveMsg("✅ 已成功匯出設定檔");
-        };
-
-        window.importConfig = function(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    
-                    document.getElementById('configName').value = data.name || '';
-                    document.getElementById('fwInch').value = data.fwInch || 12;
-                    document.getElementById('fwPoints').value = data.fwPoints || 1;
-                    document.getElementById('fwWidth').value = data.fwWidth || 100;
-                    document.getElementById('elevationDiff').value = data.elevationDiff || 0;
-                    document.getElementById('safetyMargin').value = data.safetyMargin || 20;
-                    document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
-                    document.getElementById('siteAngle').value = data.siteAngle || 90;
-                    document.getElementById('arDslrFocal').value = data.arDslrFocal || '';
-                    
-                    resetMap();
-                    
-                    if (data.fireworkPos) {
-                        window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
-                        addMarker(window.fireworkPos, 'firework', '砲陣地');
-                        document.getElementById('angleControlBox').classList.remove('hidden');
-                    }
-                    
-                    if (data.cameraPos) {
-                        window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
-                        addMarker(window.cameraPos, 'camera', '拍攝點');
-                    }
-                    
-                    if (window.fireworkPos && window.cameraPos) {
-                        updateDistance(); 
-                        fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
-                        map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
-                    } else if (window.fireworkPos) {
-                        map.setView(window.fireworkPos, 15);
-                        calculate();
-                    } else {
-                        calculate();
-                    }
-                    showSaveMsg(`✅ 已成功載入「${data.name || '設定檔'}」`);
-                } catch (err) {
-                    showSaveMsg("❌ 匯入失敗，檔案格式不正確", true);
+            try {
+                const response = await fetch(gasUrl + "?action=load");
+                const result = await response.json();
+                if(result && result.data) {
+                    cloudData = result.data || {};
+                    refreshProjectList();
+                    showSaveMsg("✅ 已成功載入雲端專案庫");
+                } else {
+                    cloudData = {};
+                    refreshProjectList();
+                    showSaveMsg("✅ 雲端尚無資料，建立空資料庫");
                 }
-                event.target.value = '';
-            };
-            reader.readAsText(file);
+            } catch(e) {
+                showSaveMsg("❌ 載入失敗，請檢查網址", true);
+            }
         };
+
+        window.selectProject = function() {
+            const id = document.getElementById('projectSelector').value;
+            if (!id) return;
+            
+            currentProjectId = id;
+            const project = cloudData[id];
+            
+            isAutoLoading = true; // 防止載入時觸發自動儲存
+            applyDataToView(project, true);
+            document.getElementById('configName').value = project.name || '';
+            isAutoLoading = false;
+            
+            showSaveMsg(`✅ 已載入專案：${project.name}`);
+            autoSaveLocal(); // 載入完成後存進本地緩存
+        };
+
+        window.saveProjectAsNew = async function() {
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            if (!gasUrl) { showSaveMsg('請先輸入 Apps Script 網址', true); return; }
+            
+            const name = document.getElementById('configName').value.trim();
+            if(!name) { showSaveMsg('請輸入專案名稱', true); return; }
+
+            const newId = generateUUID();
+            cloudData[newId] = getCurrentSettingsData();
+            currentProjectId = newId;
+
+            await syncToCloud("✅ 已成功新增專案");
+        };
+
+        window.updateCurrentProject = async function() {
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            if (!gasUrl) { showSaveMsg('請先輸入 Apps Script 網址', true); return; }
+            
+            if(!currentProjectId || !cloudData[currentProjectId]) {
+                showSaveMsg('請先載入專案，或點擊「新增儲存」', true); return;
+            }
+            
+            const name = document.getElementById('configName').value.trim();
+            if(!name) { showSaveMsg('請輸入專案名稱', true); return; }
+
+            cloudData[currentProjectId] = getCurrentSettingsData();
+            await syncToCloud("✅ 已成功更新覆蓋專案");
+        };
+
+        window.deleteCurrentProject = async function() {
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            if (!gasUrl) { showSaveMsg('請先輸入 Apps Script 網址', true); return; }
+
+            if(!currentProjectId || !cloudData[currentProjectId]) {
+                showSaveMsg('請先從上方清單選擇要刪除的專案', true); return;
+            }
+
+            if(confirm(`確定要刪除專案「${cloudData[currentProjectId].name}」嗎？此動作無法復原。`)) {
+                delete cloudData[currentProjectId];
+                currentProjectId = null;
+                document.getElementById('configName').value = '';
+                document.getElementById('projectSelector').value = '';
+                await syncToCloud("✅ 已成功刪除專案");
+            }
+        };
+
+        async function syncToCloud(successMsg) {
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            showSaveMsg("☁️ 雲端同步中...");
+            try {
+                await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'save', data: cloudData })
+                });
+                refreshProjectList();
+                showSaveMsg(successMsg);
+            } catch(e) {
+                showSaveMsg("❌ 同步失敗，請檢查網址", true);
+            }
+        }
+
+        // 共用的資料套用函式
+        function applyDataToView(data, fitBounds = true) {
+            document.getElementById('fwInch').value = data.fwInch || 12;
+            document.getElementById('fwPoints').value = data.fwPoints || 1;
+            document.getElementById('fwWidth').value = data.fwWidth || 100;
+            document.getElementById('elevationDiff').value = data.elevationDiff || 0;
+            document.getElementById('safetyMargin').value = data.safetyMargin || 20;
+            document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
+            document.getElementById('siteAngle').value = data.siteAngle || 90;
+            document.getElementById('arDslrFocal').value = data.arDslrFocal || '';
+            
+            resetMap();
+            
+            if (data.fireworkPos) {
+                window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
+                addMarker(window.fireworkPos, 'firework', '砲陣地');
+                document.getElementById('angleControlBox').classList.remove('hidden');
+            }
+            
+            if (data.cameraPos) {
+                window.cameraPos = L.latLng(data.cameraPos.lat, data.cameraPos.lng);
+                addMarker(window.cameraPos, 'camera', '拍攝點');
+            }
+            
+            if (window.fireworkPos && window.cameraPos) {
+                updateDistance(); 
+                fetchWeather(window.fireworkPos.lat, window.fireworkPos.lng);
+                if(fitBounds) map.fitBounds(L.latLngBounds([window.fireworkPos, window.cameraPos]), { padding: [50, 50] });
+            } else if (window.fireworkPos) {
+                if(fitBounds) map.setView(window.fireworkPos, 15);
+                calculate();
+            } else {
+                calculate();
+            }
+        }
 
         function showSaveMsg(msg, isError = false) {
             const el = document.getElementById('saveMsg');
