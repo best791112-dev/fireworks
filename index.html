@@ -1106,7 +1106,20 @@
 
         window.selectProject = function() {
             const id = document.getElementById('projectSelector').value;
-            if (!id) return;
+            if (!id) {
+                // 新增：處理選擇空白項目時，清空所有設定與照片
+                currentProjectId = null;
+                document.getElementById('configName').value = '';
+                window.clearPhoto();
+                
+                isAutoLoading = true;
+                applyDataToView({}, false); // 套用空資料(恢復預設值)
+                isAutoLoading = false;
+                
+                showSaveMsg("🔄 已重置為空白設定");
+                autoSaveLocal();
+                return;
+            }
             
             currentProjectId = id;
             const project = cloudData[id];
