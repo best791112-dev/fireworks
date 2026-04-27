@@ -107,15 +107,16 @@
                 </h2>
                 <div class="space-y-4">
                     
-                    <!-- Google Apps Script 網址 -->
+                    <!-- Google Apps Script 網址與資料夾設定 -->
                     <div class="flex flex-col gap-2 border-b border-slate-200 pb-4">
-                        <span class="text-xs font-bold text-slate-500">1. Google Apps Script 網址 (儲存至試算表)</span>
+                        <span class="text-xs font-bold text-slate-500">1. 雲端環境設定 (Google Sheets & Drive)</span>
                         <div class="flex gap-2">
                             <input type="text" id="gasUrl" placeholder="輸入 Apps Script 部署網址" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
                             <button onclick="window.loadFromGoogleSheets()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-bold shadow transition whitespace-nowrap">
                                 連線載入
                             </button>
                         </div>
+                        <input type="text" id="driveFolderId" placeholder="輸入 Google Drive 資料夾 ID (用於存照片，選填)" title="若要上傳照片，請貼上您雲端資料夾網址最後的那串代碼" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
                     </div>
 
                     <!-- 專案清單 -->
@@ -127,10 +128,30 @@
                     </div>
 
                     <!-- 編輯與儲存動作 -->
-                    <div class="flex flex-col gap-2 pt-2 border-t border-slate-200">
-                        <span class="text-xs font-bold text-slate-500">3. 專案編輯與儲存</span>
+                    <div class="flex flex-col gap-3 pt-2 border-t border-slate-200">
+                        <span class="text-xs font-bold text-slate-500">3. 專案編輯與照片記錄</span>
                         <input type="text" id="configName" placeholder="專案名稱 (例: 101煙火拍攝點)" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm text-slate-800">
-                        <div class="flex gap-2">
+                        
+                        <!-- 現場照片上傳區 -->
+                        <div class="flex items-center gap-3">
+                            <label class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg text-sm font-bold shadow transition cursor-pointer flex-1 text-center whitespace-nowrap">
+                                📸 附加現場照片
+                                <input type="file" id="photoUpload" accept="image/*" class="hidden" onchange="window.handlePhotoUpload(event)">
+                            </label>
+                            <button onclick="window.clearPhoto()" id="clearPhotoBtn" class="hidden bg-red-100 hover:bg-red-200 text-red-600 px-3 py-2 rounded-lg text-sm font-bold shadow transition text-center whitespace-nowrap">
+                                移除照片
+                            </button>
+                        </div>
+                        
+                        <!-- 預覽縮圖容器 -->
+                        <div id="photoPreviewContainer" class="hidden relative w-full h-40 bg-slate-100 rounded-lg overflow-hidden shadow-inner border border-slate-200">
+                            <img id="projectPhotoPreview" src="" alt="現場預覽" class="w-full h-full object-cover">
+                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 text-center backdrop-blur-sm" id="photoStatusText">
+                                準備上傳至雲端硬碟...
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
                             <button onclick="window.saveProjectAsNew()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-2 py-2 rounded-lg text-sm font-bold shadow transition text-center whitespace-nowrap">
                                 ➕ 新增儲存
                             </button>
@@ -247,7 +268,6 @@
                     <span class="text-white text-[10px]">mm</span>
                 </div>
 
-                <!-- 單眼取景框輸入欄位 -->
                 <div class="bg-sky-900/80 px-2 py-1 rounded backdrop-blur border border-sky-400 flex items-center gap-1 shadow-md">
                     <label class="text-sky-100 text-[10px] whitespace-nowrap font-bold">單眼取景框:</label>
                     <input type="number" id="arDslrFocal" placeholder="自動" oninput="drawARSketch()" class="w-12 p-0.5 text-black text-center rounded text-xs outline-none" title="輸入單眼焦段，留空則顯示系統建議的完美焦距框">
@@ -276,6 +296,9 @@
         </div>
     </div>
 
+    <!-- 用於隱藏處理照片壓縮的 Canvas -->
+    <canvas id="imageCompressCanvas" style="display:none;"></canvas>
+
     <script>
         var map;
         var fireworkPos = null;
@@ -286,9 +309,11 @@
         var siteLineGroup = null;
         var isAutoLoading = false; 
 
-        // 雲端資料庫狀態
+        // 雲端資料庫狀態與照片變數
         var cloudData = {};
         var currentProjectId = null;
+        var pendingPhotoBase64 = ""; // 暫存等待上傳的照片
+        var currentPhotoUrl = ""; // 當前專案雲端的照片網址
 
         window.onload = function() {
             map = L.map('map').setView([25.0339, 121.5644], 15);
@@ -312,7 +337,6 @@
 
             map.on('click', onMapClick);
 
-            // ================= 地圖定位事件綁定 (移入 window.onload 內) =================
             map.on('locationfound', function(e) {
                 L.popup().setLatLng(e.latlng).setContent("📍 您目前的位置").openOn(map);
             });
@@ -321,7 +345,7 @@
                 alert("無法取得定位，請確認是否允許瀏覽器存取位置權限。");
             });
 
-            document.querySelectorAll('input:not([id^="ar"], #gasUrl, #mapSearch, #configName)').forEach(input => {
+            document.querySelectorAll('input:not([id^="ar"], #gasUrl, #driveFolderId, #mapSearch, #configName, #photoUpload)').forEach(input => {
                 input.addEventListener('input', calculate);
             });
 
@@ -331,14 +355,116 @@
                 }
             }, 500);
 
-            // 自動讀取上次的 GAS Url
+            // 自動讀取上次的 GAS Url 與 Folder ID
             const savedGasUrl = safeGetStorage('fireworks_gas_url');
-            if(savedGasUrl) {
-                document.getElementById('gasUrl').value = savedGasUrl;
-            }
+            if(savedGasUrl) document.getElementById('gasUrl').value = savedGasUrl;
+            
+            const savedFolderId = safeGetStorage('fireworks_drive_folder');
+            if(savedFolderId) document.getElementById('driveFolderId').value = savedFolderId;
 
             autoLoadLocal();
         };
+
+        // ================= 照片處理與壓縮 =================
+        window.handlePhotoUpload = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showSaveMsg("處理照片中...");
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.getElementById('imageCompressCanvas');
+                    const ctx = canvas.getContext('2d');
+                    // 將照片最長邊限制在 1200px 進行壓縮，確保 Base64 不會過大導致 GAS 失敗
+                    const MAX_SIZE = 1200;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height = Math.round((height * MAX_SIZE) / width);
+                            width = MAX_SIZE;
+                        }
+                    } else {
+                        if (height > MAX_SIZE) {
+                            width = Math.round((width * MAX_SIZE) / height);
+                            height = MAX_SIZE;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // 輸出為品質 0.7 的 JPG
+                    pendingPhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    const previewImg = document.getElementById('projectPhotoPreview');
+                    previewImg.src = pendingPhotoBase64;
+                    document.getElementById('photoPreviewContainer').classList.remove('hidden');
+                    document.getElementById('clearPhotoBtn').classList.remove('hidden');
+                    document.getElementById('photoStatusText').innerText = "⚠️ 照片準備就緒，請點擊「更新/新增儲存」以上傳至雲端";
+                    
+                    showSaveMsg("✅ 照片已準備上傳");
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        };
+
+        window.clearPhoto = function() {
+            pendingPhotoBase64 = "";
+            currentPhotoUrl = "";
+            document.getElementById('projectPhotoPreview').src = "";
+            document.getElementById('photoPreviewContainer').classList.add('hidden');
+            document.getElementById('clearPhotoBtn').classList.add('hidden');
+            document.getElementById('photoUpload').value = ""; 
+            if(currentProjectId && cloudData[currentProjectId]) {
+                cloudData[currentProjectId].photoUrl = "";
+            }
+            showSaveMsg("🗑️ 照片已移除");
+        };
+
+        async function uploadPhotoToDrive(projectName) {
+            if (!pendingPhotoBase64) return currentPhotoUrl; // 沒有新照片，回傳原本的網址
+
+            const gasUrl = document.getElementById('gasUrl').value.trim();
+            const folderId = document.getElementById('driveFolderId').value.trim();
+
+            if (!folderId) {
+                showSaveMsg("⚠️ 尚未設定 Google Drive 資料夾 ID，無法上傳照片", true);
+                throw new Error("Missing Folder ID");
+            }
+
+            showSaveMsg("☁️ 正在上傳照片至 Google Drive...");
+            
+            try {
+                const res = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'uploadImage',
+                        folderId: folderId,
+                        base64: pendingPhotoBase64,
+                        name: projectName + "_" + new Date().toISOString().split('T')[0]
+                    })
+                });
+                
+                const result = await res.json();
+                if (result.status === 'ok') {
+                    pendingPhotoBase64 = ""; // 上傳成功，清空待上傳的暫存
+                    document.getElementById('photoStatusText').innerText = "✅ 圖片已安全儲存在您的 Google Drive";
+                    return result.url;
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch(e) {
+                console.error(e);
+                throw new Error("上傳失敗");
+            }
+        }
 
         // ================= 地圖定位與搜尋功能 =================
         function locateMe() {
@@ -349,7 +475,6 @@
             const query = document.getElementById('mapSearch').value.trim();
             if(!query) return;
 
-            // 檢查是否為經緯度格式 (如: 25.033, 121.564)
             const coordMatch = query.match(/^([-+]?\d{1,2}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)$/);
             if(coordMatch) {
                 const lat = parseFloat(coordMatch[1]);
@@ -358,7 +483,6 @@
                 return;
             }
 
-            // 使用 OpenStreetMap Nominatim API 進行地標搜尋
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
                 const data = await res.json();
@@ -727,7 +851,6 @@
             const userPhoneFocalLength = parseFloat(document.getElementById('arFocalLength').value) || 23;
             const phoneSensorW = isPortrait ? 24 : 36;
             
-            // 重新運算系統建議焦段 (為了畫單眼框)
             const f_w_port = (24 * slantDistance) / (totalWidth * safety);
             const f_h_port = (36 * slantDistance) / (virtualTotalHeight * safety);
             const suggestPort = Math.min(f_w_port, f_h_port);
@@ -738,11 +861,9 @@
 
             const suggestedDslrFocal = isPortrait ? suggestPort : suggestLand;
 
-            // 取得單眼取景框設定
             const dslrInputVal = document.getElementById('arDslrFocal').value;
             const targetDslrFocal = dslrInputVal ? parseFloat(dslrInputVal) : suggestedDslrFocal;
 
-            // 相機透視運算
             const phoneFovH_rad = 2 * Math.atan(phoneSensorW / (2 * userPhoneFocalLength));
             const phoneFovDeg = Math.round(phoneFovH_rad * 180 / Math.PI);
             const focalLengthPx = (cw / 2) / Math.tan(phoneFovH_rad / 2);
@@ -750,7 +871,6 @@
             const scale = focalLengthPx / slantDistance; 
             let launchBaseY = groundY + (elevationDiff * scale);
 
-            // 單眼框線尺寸運算 (像素)
             const dslrSensorW = isPortrait ? 24 : 36;
             const dslrSensorH = isPortrait ? 36 : 24;
             const dslrFrameWidthPx = cw * (userPhoneFocalLength / targetDslrFocal);
@@ -759,7 +879,6 @@
             const cx = cw / 2;
             const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
 
-            // 畫相機平視水平線
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 5]);
@@ -773,7 +892,6 @@
             ctx.fillText(`相機水平視線 (0m)`, 10, groundY - 5);
             ctx.setLineDash([]);
 
-            // 畫陣地實際所在基準面 (高低差線)
             if (elevationDiff !== 0) {
                 ctx.strokeStyle = 'rgba(249, 115, 22, 0.5)';
                 ctx.lineWidth = 1;
@@ -814,17 +932,14 @@
                 ctx.fill();
             }
 
-            // 畫單眼相機取景框 (Cyan)
-            const dslrX = cx - dslrFrameWidthPx / 2;
-            const dslrY = groundY - dslrFrameHeightPx * (1 - landscapeRatio);
-            
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)'; // Tailwind Sky-400
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)'; 
             ctx.lineWidth = 3;
             ctx.setLineDash([12, 8]);
+            const dslrX = cx - dslrFrameWidthPx / 2;
+            const dslrY = groundY - dslrFrameHeightPx * (1 - landscapeRatio);
             ctx.strokeRect(dslrX, dslrY, dslrFrameWidthPx, dslrFrameHeightPx);
             ctx.setLineDash([]);
 
-            // 單眼框中心十字輔助線
             ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -834,7 +949,6 @@
             ctx.lineTo(cx, dslrY + dslrFrameHeightPx / 2 + 15);
             ctx.stroke();
 
-            // 底部狀態提示
             let scaleHint = isDefaultDistance ? 
                 `⚠️ 預設 500m 模擬 | 手機 ${orientationText} (FOV: ${phoneFovDeg}°)` : 
                 `${Math.round(slantDistance)}m (含高低差斜距) | 視角 ${viewAngle}°`;
@@ -849,7 +963,7 @@
             ctx.shadowBlur = 0;
         }
 
-        // ================= 安全儲存與雲端存檔邏輯 =================
+        // ================= 安全儲存與本地快取邏輯 =================
         function safeGetStorage(key) {
             try { return localStorage.getItem(key); } 
             catch (e) { return null; }
@@ -860,7 +974,6 @@
             catch (e) { console.warn("Local storage is disabled."); }
         }
 
-        // 產生獨立的專案 ID
         function generateUUID() {
             return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
                 var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -879,6 +992,7 @@
                 landscapeMargin: document.getElementById('landscapeMargin').value,
                 siteAngle: document.getElementById('siteAngle').value,
                 arDslrFocal: document.getElementById('arDslrFocal').value,
+                photoUrl: currentPhotoUrl, // 包含雲端照片網址
                 fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
                 cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
             };
@@ -905,7 +1019,7 @@
             isAutoLoading = false; 
         }
 
-        // --- 雲端專案庫邏輯 ---
+        // ================= 雲端專案庫邏輯 =================
         function refreshProjectList() {
             const selector = document.getElementById('projectSelector');
             selector.innerHTML = '<option value="">-- 選擇專案以載入 --</option>';
@@ -927,9 +1041,11 @@
             const gasUrl = document.getElementById('gasUrl').value.trim();
             if (!gasUrl) { showSaveMsg('請先輸入 Apps Script 網址', true); return; }
 
+            const driveFolderId = document.getElementById('driveFolderId').value.trim();
             safeSetStorage('fireworks_gas_url', gasUrl);
+            if(driveFolderId) safeSetStorage('fireworks_drive_folder', driveFolderId);
+
             showSaveMsg("☁️ 連線載入中...");
-            
             try {
                 const response = await fetch(gasUrl + "?action=load");
                 const result = await response.json();
@@ -954,13 +1070,13 @@
             currentProjectId = id;
             const project = cloudData[id];
             
-            isAutoLoading = true; // 防止載入時觸發自動儲存
+            isAutoLoading = true; 
             applyDataToView(project, true);
             document.getElementById('configName').value = project.name || '';
             isAutoLoading = false;
             
             showSaveMsg(`✅ 已載入專案：${project.name}`);
-            autoSaveLocal(); // 載入完成後存進本地緩存
+            autoSaveLocal(); 
         };
 
         window.saveProjectAsNew = async function() {
@@ -970,11 +1086,20 @@
             const name = document.getElementById('configName').value.trim();
             if(!name) { showSaveMsg('請輸入專案名稱', true); return; }
 
-            const newId = generateUUID();
-            cloudData[newId] = getCurrentSettingsData();
-            currentProjectId = newId;
+            try {
+                // 如果有待上傳的照片，先處理上傳
+                if(pendingPhotoBase64) {
+                    currentPhotoUrl = await uploadPhotoToDrive(name);
+                }
 
-            await syncToCloud("✅ 已成功新增專案");
+                const newId = generateUUID();
+                cloudData[newId] = getCurrentSettingsData();
+                currentProjectId = newId;
+
+                await syncToCloud("✅ 已成功新增專案 (含照片)");
+            } catch(e) {
+                // 發生錯誤不影響操作，會在 upload 階段顯示錯誤
+            }
         };
 
         window.updateCurrentProject = async function() {
@@ -988,8 +1113,15 @@
             const name = document.getElementById('configName').value.trim();
             if(!name) { showSaveMsg('請輸入專案名稱', true); return; }
 
-            cloudData[currentProjectId] = getCurrentSettingsData();
-            await syncToCloud("✅ 已成功更新覆蓋專案");
+            try {
+                // 如果有待上傳的照片，先處理上傳覆蓋
+                if(pendingPhotoBase64) {
+                    currentPhotoUrl = await uploadPhotoToDrive(name);
+                }
+
+                cloudData[currentProjectId] = getCurrentSettingsData();
+                await syncToCloud("✅ 已成功更新覆蓋專案");
+            } catch(e) {}
         };
 
         window.deleteCurrentProject = async function() {
@@ -1005,13 +1137,14 @@
                 currentProjectId = null;
                 document.getElementById('configName').value = '';
                 document.getElementById('projectSelector').value = '';
+                window.clearPhoto();
                 await syncToCloud("✅ 已成功刪除專案");
             }
         };
 
         async function syncToCloud(successMsg) {
             const gasUrl = document.getElementById('gasUrl').value.trim();
-            showSaveMsg("☁️ 雲端同步中...");
+            showSaveMsg("☁️ 雲端同步資料中...");
             try {
                 await fetch(gasUrl, {
                     method: 'POST',
@@ -1025,7 +1158,6 @@
             }
         }
 
-        // 共用的資料套用函式
         function applyDataToView(data, fitBounds = true) {
             document.getElementById('fwInch').value = data.fwInch || 12;
             document.getElementById('fwPoints').value = data.fwPoints || 1;
@@ -1036,6 +1168,20 @@
             document.getElementById('siteAngle').value = data.siteAngle || 90;
             document.getElementById('arDslrFocal').value = data.arDslrFocal || '';
             
+            // 處理照片顯示
+            currentPhotoUrl = data.photoUrl || "";
+            pendingPhotoBase64 = ""; // 切換專案時清空暫存
+            if(currentPhotoUrl) {
+                document.getElementById('projectPhotoPreview').src = currentPhotoUrl;
+                document.getElementById('photoPreviewContainer').classList.remove('hidden');
+                document.getElementById('clearPhotoBtn').classList.remove('hidden');
+                document.getElementById('photoStatusText').innerText = "☁️ 讀取自 Google Drive";
+            } else {
+                document.getElementById('projectPhotoPreview').src = "";
+                document.getElementById('photoPreviewContainer').classList.add('hidden');
+                document.getElementById('clearPhotoBtn').classList.add('hidden');
+            }
+
             resetMap();
             
             if (data.fireworkPos) {
