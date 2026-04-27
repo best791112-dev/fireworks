@@ -494,7 +494,7 @@
                         action: 'uploadImage',
                         folderId: folderId,
                         base64: pendingPhotoBase64,
-                        name: projectName + "_" + new Date().toISOString().split('T')[0]
+                        name: projectName // 檔名直接使用專案名稱，移除日期後綴
                     })
                 });
                 
