@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -14,14 +13,15 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        /* 自訂標記點的樣式修正，確保在手機上好點擊 */
         .leaflet-marker-icon.custom-div-icon {
             background: transparent;
             border: none;
         }
-        /* 確保全螢幕影片不會被 Safari 擋住 */
         video {
             object-fit: cover;
+        }
+        #map {
+            z-index: 10;
         }
     </style>
 </head>
@@ -156,8 +156,7 @@
                 </div>
                 
                 <div class="relative">
-                    <!-- 將高度寫死在 inline style 確保手機複製不出錯 -->
-                    <div id="map" style="height: 500px; width: 100%; border-radius: 12px; z-index: 1;"></div>
+                    <div id="map" style="height: 500px; width: 100%; border-radius: 12px; background-color: #e5e7eb;"></div>
                     
                     <!-- 地圖浮動控制：旋轉觀賞面 -->
                     <div id="angleControlBox" class="hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[1000] w-11/12 max-w-sm bg-white/95 backdrop-blur px-5 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.2)] border border-slate-200 transition-all">
@@ -197,7 +196,6 @@
         <video id="arVideo" autoplay playsinline class="absolute inset-0 w-full h-full object-cover"></video>
         <canvas id="arCanvas" class="absolute inset-0 w-full h-full z-10"></canvas>
         
-        <!-- AR 控制面板 -->
         <div class="absolute top-0 left-0 right-0 p-3 flex flex-col gap-2 z-20 bg-gradient-to-b from-black/80 via-black/50 to-transparent pb-10 pointer-events-none">
             <div class="flex justify-between items-start text-white pointer-events-auto">
                 <span class="font-bold text-sm md:text-base drop-shadow-md">📷 比例草圖模擬</span>
@@ -215,9 +213,16 @@
                 </select>
                 
                 <div class="bg-black/60 px-2 py-1 rounded backdrop-blur border border-white/20 flex items-center gap-1 shadow-md">
-                    <label class="text-white text-[10px] whitespace-nowrap">焦距:</label>
-                    <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-10 p-0.5 text-black text-center rounded text-xs outline-none" title="相機等效焦距">
+                    <label class="text-white text-[10px] whitespace-nowrap">手機鏡頭:</label>
+                    <input type="number" id="arFocalLength" value="23" oninput="drawARSketch()" class="w-10 p-0.5 text-black text-center rounded text-xs outline-none" title="手機主鏡頭等效焦距">
                     <span class="text-white text-[10px]">mm</span>
+                </div>
+
+                <!-- 新增：單眼取景框輸入欄位 -->
+                <div class="bg-sky-900/80 px-2 py-1 rounded backdrop-blur border border-sky-400 flex items-center gap-1 shadow-md">
+                    <label class="text-sky-100 text-[10px] whitespace-nowrap font-bold">單眼取景框:</label>
+                    <input type="number" id="arDslrFocal" placeholder="自動" oninput="drawARSketch()" class="w-12 p-0.5 text-black text-center rounded text-xs outline-none" title="輸入單眼焦段，留空則顯示系統建議的完美焦距框">
+                    <span class="text-sky-100 text-[10px]">mm</span>
                 </div>
 
                 <div class="bg-emerald-900/60 px-2 py-1 rounded backdrop-blur border border-emerald-500/50 flex items-center gap-1 shadow-md">
@@ -229,11 +234,6 @@
                     <label class="text-emerald-100 text-[10px] whitespace-nowrap">陣地寬:</label>
                     <input type="number" id="arFwWidth" oninput="syncFromAR()" class="w-12 p-0.5 text-black text-center rounded text-xs outline-none">
                     <span class="text-emerald-100 text-[10px]">m</span>
-                </div>
-
-                <div class="bg-emerald-900/60 px-2 py-1 rounded backdrop-blur border border-emerald-500/50 flex items-center gap-1 shadow-md">
-                    <label class="text-emerald-100 text-[10px] whitespace-nowrap">發射點:</label>
-                    <input type="number" id="arFwPoints" oninput="syncFromAR()" class="w-10 p-0.5 text-black text-center rounded text-xs outline-none">
                 </div>
             </div>
         </div>
@@ -282,6 +282,12 @@
             document.querySelectorAll('input:not([id^="ar"]').forEach(input => {
                 input.addEventListener('input', calculate);
             });
+
+            setTimeout(function() {
+                if (map) {
+                    map.invalidateSize();
+                }
+            }, 500);
 
             autoLoadLocal();
         };
@@ -430,7 +436,6 @@
             }
 
             updateLaunchSiteLine();
-            
             syncToAR();
 
             if(!document.getElementById('arModal').classList.contains('hidden')) {
@@ -445,16 +450,13 @@
         function syncToAR() {
             const arInch = document.getElementById('arFwInch');
             const arWidth = document.getElementById('arFwWidth');
-            const arPoints = document.getElementById('arFwPoints');
             if(arInch) arInch.value = document.getElementById('fwInch').value;
             if(arWidth) arWidth.value = document.getElementById('fwWidth').value;
-            if(arPoints) arPoints.value = document.getElementById('fwPoints').value;
         }
 
         function syncFromAR() {
             document.getElementById('fwInch').value = document.getElementById('arFwInch').value;
             document.getElementById('fwWidth').value = document.getElementById('arFwWidth').value;
-            document.getElementById('fwPoints').value = document.getElementById('arFwPoints').value;
             calculate();
         }
 
@@ -587,6 +589,7 @@
 
             ctx.clearRect(0, 0, cw, ch);
 
+            const safety = 1 + (parseFloat(document.getElementById('safetyMargin').value) / 100);
             const inch = parseFloat(document.getElementById('fwInch').value) || 0;
             const W = parseFloat(document.getElementById('fwWidth').value) || 0;
             const ptsCount = parseInt(document.getElementById('fwPoints').value) || 1;
@@ -598,7 +601,10 @@
             const totalHeight = altitude + (burstDia / 2);
             const totalWidth = W + burstDia;
 
-            const groundY = ch * (1 - (landscapePct / 100));
+            const landscapeRatio = landscapePct / 100;
+            const virtualTotalHeight = totalHeight / (1 - landscapeRatio);
+
+            const groundY = ch * (1 - landscapeRatio);
 
             let distance = 0;
             let slantDistance = 500;
@@ -619,9 +625,6 @@
                 isDefaultDistance = true;
             }
 
-            let scale = 1;
-            let scaleHint = "";
-
             const orientationMode = document.getElementById('arOrientation').value;
             let isPortrait;
             if (orientationMode === 'portrait') {
@@ -633,25 +636,42 @@
             }
             
             const orientationText = isPortrait ? "直幅" : "橫幅";
-            const userFocalLength = parseFloat(document.getElementById('arFocalLength').value) || 23;
-            const sensorWidth = isPortrait ? 24 : 36;
-            const fovH_rad = 2 * Math.atan(sensorWidth / (2 * userFocalLength));
-            const fovDeg = Math.round(fovH_rad * 180 / Math.PI);
-            const focalLengthPx = (cw / 2) / Math.tan(fovH_rad / 2);
+            const userPhoneFocalLength = parseFloat(document.getElementById('arFocalLength').value) || 23;
+            const phoneSensorW = isPortrait ? 24 : 36;
             
-            scale = focalLengthPx / slantDistance; 
+            // 重新運算系統建議焦段 (為了畫單眼框)
+            const f_w_port = (24 * slantDistance) / (totalWidth * safety);
+            const f_h_port = (36 * slantDistance) / (virtualTotalHeight * safety);
+            const suggestPort = Math.min(f_w_port, f_h_port);
+
+            const f_w_land = (36 * slantDistance) / (totalWidth * safety);
+            const f_h_land = (24 * slantDistance) / (virtualTotalHeight * safety);
+            const suggestLand = Math.min(f_w_land, f_h_land);
+
+            const suggestedDslrFocal = isPortrait ? suggestPort : suggestLand;
+
+            // 取得單眼取景框設定
+            const dslrInputVal = document.getElementById('arDslrFocal').value;
+            const targetDslrFocal = dslrInputVal ? parseFloat(dslrInputVal) : suggestedDslrFocal;
+
+            // 相機透視運算
+            const phoneFovH_rad = 2 * Math.atan(phoneSensorW / (2 * userPhoneFocalLength));
+            const phoneFovDeg = Math.round(phoneFovH_rad * 180 / Math.PI);
+            const focalLengthPx = (cw / 2) / Math.tan(phoneFovH_rad / 2);
             
+            const scale = focalLengthPx / slantDistance; 
             let launchBaseY = groundY + (elevationDiff * scale);
 
-            if (isDefaultDistance) {
-                scaleHint = `⚠️ 預設 500m 模擬 | ${orientationText} (FOV: ${fovDeg}°)`;
-            } else {
-                scaleHint = `${Math.round(slantDistance)}m (含高低差斜距) | 視角 ${viewAngle}°`;
-            }
-
-            const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
+            // 單眼框線尺寸運算 (像素)
+            const dslrSensorW = isPortrait ? 24 : 36;
+            const dslrSensorH = isPortrait ? 36 : 24;
+            const dslrFrameWidthPx = cw * (userPhoneFocalLength / targetDslrFocal);
+            const dslrFrameHeightPx = cw * (dslrSensorH / dslrSensorW) * (userPhoneFocalLength / targetDslrFocal);
+            
             const cx = cw / 2;
+            const apparentW = W * Math.max(Math.sin(viewAngle * Math.PI / 180), 0.05);
 
+            // 畫相機平視水平線
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 5]);
@@ -665,6 +685,7 @@
             ctx.fillText(`相機水平視線 (0m)`, 10, groundY - 5);
             ctx.setLineDash([]);
 
+            // 畫陣地實際所在基準面 (高低差線)
             if (elevationDiff !== 0) {
                 ctx.strokeStyle = 'rgba(249, 115, 22, 0.5)';
                 ctx.lineWidth = 1;
@@ -678,9 +699,9 @@
                 ctx.setLineDash([]);
             }
 
+            // 畫煙火草圖
             for (let i = 0; i < ptsCount; i++) {
                 let fraction = ptsCount === 1 ? 0.5 : i / (ptsCount - 1);
-                
                 let distFromCenter = (fraction - 0.5) * apparentW; 
                 let pointX = cx + (distFromCenter * scale);
                 
@@ -706,20 +727,61 @@
                 ctx.fill();
             }
 
+            // 畫單眼相機取景框 (Cyan)
+            const dslrX = cx - dslrFrameWidthPx / 2;
+            const dslrY = groundY - dslrFrameHeightPx * (1 - landscapeRatio);
+            
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.9)'; // Tailwind Sky-400
+            ctx.lineWidth = 3;
+            ctx.setLineDash([12, 8]);
+            ctx.strokeRect(dslrX, dslrY, dslrFrameWidthPx, dslrFrameHeightPx);
+            ctx.setLineDash([]);
+
+            // 單眼框中心十字輔助線
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx - 15, dslrY + dslrFrameHeightPx / 2);
+            ctx.lineTo(cx + 15, dslrY + dslrFrameHeightPx / 2);
+            ctx.moveTo(cx, dslrY + dslrFrameHeightPx / 2 - 15);
+            ctx.lineTo(cx, dslrY + dslrFrameHeightPx / 2 + 15);
+            ctx.stroke();
+
+            // 單眼框文字標籤
+            ctx.fillStyle = 'rgba(56, 189, 248, 1)';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.shadowColor = "rgba(0,0,0,0.8)";
+            ctx.shadowBlur = 4;
+            const modeText = dslrInputVal ? "自訂" : "自動建議";
+            ctx.fillText(`📸 單眼取景框: ${Math.round(targetDslrFocal)}mm (${modeText})`, dslrX + 5, dslrY + 20);
+
+            // 底部狀態提示
+            let scaleHint = isDefaultDistance ? 
+                `⚠️ 預設 500m 模擬 | 手機 ${orientationText} (FOV: ${phoneFovDeg}°)` : 
+                `${Math.round(slantDistance)}m (含高低差斜距) | 視角 ${viewAngle}°`;
+
             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.font = 'bold 14px sans-serif';
             ctx.textAlign = 'center';
-            ctx.shadowColor = "rgba(0,0,0,0.8)";
-            ctx.shadowBlur = 4;
-            
-            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, 100);
+            ctx.fillText(`現場模擬草圖 (發射點: ${ptsCount} / 真實寬度: ${W}m)`, cx, ch - 40);
             ctx.fillStyle = 'rgba(252, 211, 77, 1)'; 
-            ctx.fillText(`狀態：${scaleHint}`, cx, 120);
+            ctx.fillText(`狀態：${scaleHint}`, cx, ch - 20);
             
             ctx.shadowBlur = 0;
         }
 
-        // ================= 瀏覽器本地快取自動存檔 =================
+        // ================= 瀏覽器本地快取自動存檔 安全處理 =================
+        function safeGetStorage(key) {
+            try { return localStorage.getItem(key); } 
+            catch (e) { return null; }
+        }
+
+        function safeSetStorage(key, value) {
+            try { localStorage.setItem(key, value); } 
+            catch (e) { console.warn("Local storage is disabled in this environment."); }
+        }
+
         function autoSaveLocal() {
             if (isAutoLoading || !map) return;
             const data = {
@@ -730,15 +792,17 @@
                 safetyMargin: document.getElementById('safetyMargin').value,
                 landscapeMargin: document.getElementById('landscapeMargin').value,
                 siteAngle: document.getElementById('siteAngle').value,
+                arDslrFocal: document.getElementById('arDslrFocal').value,
                 fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
                 cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
             };
-            localStorage.setItem('fireworks_autosave', JSON.stringify(data));
+            safeSetStorage('fireworks_autosave', JSON.stringify(data));
         }
 
         function autoLoadLocal() {
             isAutoLoading = true; 
-            const saved = localStorage.getItem('fireworks_autosave');
+            const saved = safeGetStorage('fireworks_autosave');
+            
             if (saved) {
                 try {
                     const data = JSON.parse(saved);
@@ -749,6 +813,7 @@
                     document.getElementById('safetyMargin').value = data.safetyMargin || 20;
                     document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
                     document.getElementById('siteAngle').value = data.siteAngle || 90;
+                    document.getElementById('arDslrFocal').value = data.arDslrFocal || '';
                     
                     if (data.fireworkPos) {
                         window.fireworkPos = L.latLng(data.fireworkPos.lat, data.fireworkPos.lng);
@@ -793,6 +858,7 @@
                 safetyMargin: document.getElementById('safetyMargin').value,
                 landscapeMargin: document.getElementById('landscapeMargin').value,
                 siteAngle: document.getElementById('siteAngle').value,
+                arDslrFocal: document.getElementById('arDslrFocal').value,
                 fireworkPos: window.fireworkPos ? { lat: window.fireworkPos.lat, lng: window.fireworkPos.lng } : null,
                 cameraPos: window.cameraPos ? { lat: window.cameraPos.lat, lng: window.cameraPos.lng } : null
             };
@@ -828,6 +894,7 @@
                     document.getElementById('safetyMargin').value = data.safetyMargin || 20;
                     document.getElementById('landscapeMargin').value = data.landscapeMargin || 25;
                     document.getElementById('siteAngle').value = data.siteAngle || 90;
+                    document.getElementById('arDslrFocal').value = data.arDslrFocal || '';
                     
                     resetMap();
                     
@@ -968,6 +1035,3 @@
     </script>
 </body>
 </html>
-
-
-```
